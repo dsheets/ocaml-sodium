@@ -1,0 +1,17 @@
+OASISFormat: 0.3
+Name:        sodium
+Version:     0.0.1
+Synopsis:    Binding to libsodium, a shared library wrapper for djb's NaCl
+Authors:     David Sheets
+License:     ISC
+Plugins:     META (0.3)
+BuildTools:  ocamlbuild
+
+Library sodium
+ Path: lib
+ Findlibname: sodium
+ Pack: true
+ Modules: Crypto_box
+ BuildDepends: ctypes.foreign
+ NativeOpt: -cclib -lsodium
+ ByteOpt: -dllib -lsodium
