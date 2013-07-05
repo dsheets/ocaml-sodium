@@ -1,4 +1,4 @@
-.PHONY: all build prep pack install uninstall clean
+.PHONY: all build prep pack install reinstall uninstall clean
 
 NAME=sodium
 PKGS=ctypes.foreign
@@ -43,6 +43,8 @@ META: META.in
 
 install: ${INSTALL}
 	ocamlfind install ${NAME} ${INSTALL}
+
+reinstall: uninstall install
 
 uninstall:
 	ocamlfind remove ${NAME}
