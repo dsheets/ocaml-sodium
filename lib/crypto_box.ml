@@ -16,13 +16,38 @@
  *)
 
 open Ctypes
+open Unsigned
 open PosixTypes
 open Foreign
+
+type public_key = UChar.t Array.t
+type secret_key = UChar.t Array.t
+
+type sizes = {
+  public_key : int;
+  secret_key : int;
+  beforenm   : int;
+  nonce      : int;
+  zero       : int;
+  box_zero   : int;
+}
+
+let bytes = {
+  public_key=32; secret_key=32; beforenm=32; nonce=24; zero=32; box_zero=16;
+}
 
 let crypto_module = "crypto_box"
 let ciphersuite = "curve25519xsalsa20poly1305"
 let impl = "ref"
 let prefix = Printf.sprintf "%s_%s_%s" crypto_module ciphersuite impl
+
+let string_of_key sz k =
+  let s = String.create sz in
+  for i = 0 to (sz - 1) do
+    s.[i] <- char_of_int (UChar.to_int (Array.get k i));
+  done; s
+let string_of_public_key = string_of_key bytes.public_key
+let string_of_secret_key = string_of_key bytes.secret_key
 
 let box_fn_type = (string @-> string @-> ullong
                    @-> string @-> string @-> string
@@ -34,8 +59,16 @@ let box_afternm_type =
 let box_c              = foreign (prefix) box_fn_type
 let box_open_c         = foreign (prefix^"_open") box_fn_type
 
-let box_keypair_c      = foreign (prefix^"_keypair")
-  (string @-> string @-> returning int)
+module C = struct
+  let keypair = foreign (prefix^"_keypair")
+    (ptr uchar @-> ptr uchar @-> returning int)
+end
+let keypair () =
+  let pk = Array.make uchar bytes.public_key in
+  let sk = Array.make uchar bytes.secret_key in
+  let ret = C.keypair (Array.start pk) (Array.start sk) in
+  assert (ret = 0); (* TODO: exn *)
+  (pk,sk)
 
 let box_beforenm_c     = foreign (prefix^"_beforenm")
   (string @-> string @-> string @-> returning int)

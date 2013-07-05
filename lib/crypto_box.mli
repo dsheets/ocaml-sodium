@@ -1,19 +1,25 @@
+type public_key
+type secret_key
+
+type sizes = {
+  public_key : int;
+  secret_key : int;
+  beforenm : int;
+  nonce : int;
+  zero : int;
+  box_zero : int;
+}
+val bytes : sizes
 val crypto_module : string
 val ciphersuite : string
 val impl : string
-val prefix : string
-val box_fn_type :
-  (string -> string -> Unsigned.ullong -> string -> string -> string -> int)
-  Ctypes.fn
-val box_afternm_type :
-  (string -> string -> Unsigned.ullong -> string -> string -> int) Ctypes.fn
-val box_c :
-  string -> string -> Unsigned.ullong -> string -> string -> string -> int
-val box_open_c :
-  string -> string -> Unsigned.ullong -> string -> string -> string -> int
-val box_keypair_c : string -> string -> int
-val box_beforenm_c : string -> string -> string -> int
-val box_afternm_c :
-  string -> string -> Unsigned.ullong -> string -> string -> int
-val box_open_afternm_c :
-  string -> string -> Unsigned.ullong -> string -> string -> int
+
+val string_of_public_key : public_key -> string
+val string_of_secret_key : secret_key -> string
+
+module C : sig
+  val keypair :
+    Unsigned.uchar Ctypes.ptr -> Unsigned.uchar Ctypes.ptr -> int
+end
+
+val keypair : unit -> public_key * secret_key
