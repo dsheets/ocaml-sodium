@@ -20,8 +20,10 @@ open Unsigned
 open PosixTypes
 open Foreign
 
-type public_key = UChar.t Array.t
-type secret_key = UChar.t Array.t
+type octets = uchar Array.t
+type public_key = octets
+type secret_key = octets
+type ciphertext = octets
 
 type sizes = {
   public_key : int;
@@ -41,34 +43,54 @@ let ciphersuite = "curve25519xsalsa20poly1305"
 let impl = "ref"
 let prefix = Printf.sprintf "%s_%s_%s" crypto_module ciphersuite impl
 
-let string_of_key sz k =
+let string_of_octets k =
+  let sz = Array.length k in
   let s = String.create sz in
   for i = 0 to (sz - 1) do
     s.[i] <- char_of_int (UChar.to_int (Array.get k i));
   done; s
-let string_of_public_key = string_of_key bytes.public_key
-let string_of_secret_key = string_of_key bytes.secret_key
-
-let box_fn_type = (string @-> string @-> ullong
-                   @-> string @-> string @-> string
-                   @-> returning int)
+let string_of_public_key = string_of_octets
+let string_of_secret_key = string_of_octets
+let string_of_ciphertext = string_of_octets
 
 let box_afternm_type =
   (string @-> string @-> ullong @-> string @-> string @-> returning int)
 
-let box_c              = foreign (prefix) box_fn_type
-let box_open_c         = foreign (prefix^"_open") box_fn_type
-
 module C = struct
+  type buffer = uchar Ctypes.ptr
+  type box = buffer -> buffer -> ullong
+      -> buffer -> buffer -> buffer -> int
+
+  let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
+                     @-> ptr uchar @-> ptr uchar @-> ptr uchar
+                     @-> returning int)
+
   let keypair = foreign (prefix^"_keypair")
     (ptr uchar @-> ptr uchar @-> returning int)
+
+  let box = foreign (prefix) box_fn_type
+  let box_open = foreign (prefix^"_open") box_fn_type
 end
+
 let keypair () =
   let pk = Array.make uchar bytes.public_key in
   let sk = Array.make uchar bytes.secret_key in
   let ret = C.keypair (Array.start pk) (Array.start sk) in
   assert (ret = 0); (* TODO: exn *)
   (pk,sk)
+
+let box message nonce pk sk =
+  let mlen = String.length message + bytes.zero in
+  let c = Array.make uchar mlen in
+  let m = Array.make uchar ~initial:UChar.zero mlen in
+  for i = bytes.zero to (mlen - 1) do
+    m.(i) <- UChar.of_int (int_of_char message.[i - bytes.zero])
+  done;
+  let ret = C.box (Array.start c) (Array.start m) (ULLong.of_int mlen)
+    (Array.start (Nonce.to_octets nonce)) (Array.start pk) (Array.start sk)
+  in
+  assert (ret = 0); (* TODO: exn *)
+  c
 
 let box_beforenm_c     = foreign (prefix^"_beforenm")
   (string @-> string @-> string @-> returning int)

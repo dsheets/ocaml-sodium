@@ -1,5 +1,6 @@
 type public_key
 type secret_key
+type ciphertext
 
 type sizes = {
   public_key : int;
@@ -16,10 +17,16 @@ val impl : string
 
 val string_of_public_key : public_key -> string
 val string_of_secret_key : secret_key -> string
+val string_of_ciphertext : ciphertext -> string
 
 module C : sig
-  val keypair :
-    Unsigned.uchar Ctypes.ptr -> Unsigned.uchar Ctypes.ptr -> int
+  type buffer = Unsigned.uchar Ctypes.ptr
+  type box = buffer -> buffer -> Unsigned.ullong
+      -> buffer -> buffer -> buffer -> int
+
+  val keypair : buffer -> buffer -> int
+  val box : box
 end
 
 val keypair : unit -> public_key * secret_key
+val box : string -> Nonce.t -> public_key -> secret_key -> ciphertext
