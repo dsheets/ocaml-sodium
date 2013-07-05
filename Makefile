@@ -2,7 +2,7 @@
 
 NAME=sodium
 PKGS=ctypes.foreign
-OBJS=crypto_box
+OBJS=nonce crypto_box
 
 OCAMLOPT=ocamlopt
 OCAMLC=ocamlc
