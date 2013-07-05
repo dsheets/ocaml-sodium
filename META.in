@@ -1,0 +1,7 @@
+version = "0.0.1"
+description = "Binding to libsodium, a shared library wrapper for djb's NaCl"
+requires = "ctypes.foreign"
+archive(byte) = "sodium.cma"
+archive(byte, plugin) = "sodium.cma"
+archive(native) = "sodium.cmxa"
+exists_if = "sodium.cma"
