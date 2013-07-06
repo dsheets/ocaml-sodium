@@ -21,9 +21,10 @@ open PosixTypes
 open Foreign
 
 type octets = uchar Array.t
-type public_key = octets
-type secret_key = octets
-type ciphertext = octets
+type public_key  = octets
+type secret_key  = octets
+type channel_key = octets (* secret *)
+type ciphertext  = octets
 
 type sizes = {
   public_key : int;
@@ -51,6 +52,7 @@ let string_of_octets start k =
   done; s
 let string_of_public_key = string_of_octets 0
 let string_of_secret_key = string_of_octets 0
+let string_of_channel_key= string_of_octets 0
 let string_of_ciphertext = string_of_octets 0
 
 module C = struct
@@ -69,13 +71,14 @@ module C = struct
   let box_open = foreign (prefix^"_open") box_fn_type
 
   let box_afternm_type =
-    (string @-> string @-> ullong @-> string @-> string @-> returning int)
+    (ptr uchar @-> ptr uchar @-> ullong
+     @-> ptr uchar @-> ptr uchar @-> returning int)
 
-  let box_beforenm_c     = foreign (prefix^"_beforenm")
-    (string @-> string @-> string @-> returning int)
-  let box_afternm_c      = foreign (prefix^"_afternm") box_afternm_type
+  let box_beforenm = foreign (prefix^"_beforenm")
+    (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
+  let box_afternm = foreign (prefix^"_afternm") box_afternm_type
 
-  let box_open_afternm_c = foreign (prefix^"_open_afternm") box_afternm_type
+  let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
 end
 
 let keypair () =
@@ -103,6 +106,34 @@ let box_open sk pk crypt nonce =
   let m = Array.make uchar clen in
   let ret = C.box_open (Array.start m) (Array.start crypt) (ULLong.of_int clen)
     (Array.start (Nonce.to_octets nonce)) (Array.start pk) (Array.start sk)
+  in
+  assert (ret = 0); (* TODO: exn *)
+  string_of_octets bytes.zero m
+
+let box_beforenm sk pk =
+  let k = Array.make uchar bytes.beforenm in
+  let ret = C.box_beforenm (Array.start k) (Array.start pk) (Array.start sk) in
+  assert (ret = 0); (* TODO: exn *)
+  k
+
+let box_afternm k message nonce =
+  let mlen = String.length message + bytes.zero in
+  let c = Array.make uchar mlen in
+  let m = Array.make uchar ~initial:UChar.zero mlen in
+  for i = bytes.zero to (mlen - 1) do
+    m.(i) <- UChar.of_int (int_of_char message.[i - bytes.zero])
+  done;
+  let ret = C.box_afternm (Array.start c) (Array.start m) (ULLong.of_int mlen)
+    (Array.start (Nonce.to_octets nonce)) (Array.start k)
+  in
+  assert (ret = 0); (* TODO: exn *)
+  c
+
+let box_open_afternm k crypt nonce =
+  let clen = Array.length crypt in
+  let m = Array.make uchar clen in
+  let ret = C.box_open_afternm (Array.start m) (Array.start crypt)
+    (ULLong.of_int clen) (Array.start (Nonce.to_octets nonce)) (Array.start k)
   in
   assert (ret = 0); (* TODO: exn *)
   string_of_octets bytes.zero m
