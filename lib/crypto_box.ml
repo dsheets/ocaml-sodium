@@ -43,33 +43,39 @@ let ciphersuite = "curve25519xsalsa20poly1305"
 let impl = "ref"
 let prefix = Printf.sprintf "%s_%s_%s" crypto_module ciphersuite impl
 
-let string_of_octets k =
+let string_of_octets start k =
   let sz = Array.length k in
-  let s = String.create sz in
-  for i = 0 to (sz - 1) do
-    s.[i] <- char_of_int (UChar.to_int (Array.get k i));
+  let s = String.create (sz - start) in
+  for i = start to (sz - 1) do
+    s.[i - start] <- char_of_int (UChar.to_int (Array.get k i));
   done; s
-let string_of_public_key = string_of_octets
-let string_of_secret_key = string_of_octets
-let string_of_ciphertext = string_of_octets
-
-let box_afternm_type =
-  (string @-> string @-> ullong @-> string @-> string @-> returning int)
+let string_of_public_key = string_of_octets 0
+let string_of_secret_key = string_of_octets 0
+let string_of_ciphertext = string_of_octets 0
 
 module C = struct
   type buffer = uchar Ctypes.ptr
   type box = buffer -> buffer -> ullong
       -> buffer -> buffer -> buffer -> int
 
+  let keypair = foreign (prefix^"_keypair")
+    (ptr uchar @-> ptr uchar @-> returning int)
+
   let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
                      @-> ptr uchar @-> ptr uchar @-> ptr uchar
                      @-> returning int)
 
-  let keypair = foreign (prefix^"_keypair")
-    (ptr uchar @-> ptr uchar @-> returning int)
-
   let box = foreign (prefix) box_fn_type
   let box_open = foreign (prefix^"_open") box_fn_type
+
+  let box_afternm_type =
+    (string @-> string @-> ullong @-> string @-> string @-> returning int)
+
+  let box_beforenm_c     = foreign (prefix^"_beforenm")
+    (string @-> string @-> string @-> returning int)
+  let box_afternm_c      = foreign (prefix^"_afternm") box_afternm_type
+
+  let box_open_afternm_c = foreign (prefix^"_open_afternm") box_afternm_type
 end
 
 let keypair () =
@@ -79,7 +85,7 @@ let keypair () =
   assert (ret = 0); (* TODO: exn *)
   (pk,sk)
 
-let box message nonce pk sk =
+let box sk pk message nonce =
   let mlen = String.length message + bytes.zero in
   let c = Array.make uchar mlen in
   let m = Array.make uchar ~initial:UChar.zero mlen in
@@ -92,9 +98,12 @@ let box message nonce pk sk =
   assert (ret = 0); (* TODO: exn *)
   c
 
-let box_beforenm_c     = foreign (prefix^"_beforenm")
-  (string @-> string @-> string @-> returning int)
-let box_afternm_c      = foreign (prefix^"_afternm") box_afternm_type
-
-let box_open_afternm_c = foreign (prefix^"_open_afternm") box_afternm_type
+let box_open sk pk crypt nonce =
+  let clen = Array.length crypt in
+  let m = Array.make uchar clen in
+  let ret = C.box_open (Array.start m) (Array.start crypt) (ULLong.of_int clen)
+    (Array.start (Nonce.to_octets nonce)) (Array.start pk) (Array.start sk)
+  in
+  assert (ret = 0); (* TODO: exn *)
+  string_of_octets bytes.zero m
 

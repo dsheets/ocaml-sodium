@@ -26,7 +26,9 @@ module C : sig
 
   val keypair : buffer -> buffer -> int
   val box : box
+  val box_open : box
 end
 
 val keypair : unit -> public_key * secret_key
-val box : string -> Nonce.t -> public_key -> secret_key -> ciphertext
+val box : secret_key -> public_key -> string -> Nonce.t -> ciphertext
+val box_open : secret_key -> public_key -> ciphertext -> Nonce.t -> string
