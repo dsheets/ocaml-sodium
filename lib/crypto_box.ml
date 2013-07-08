@@ -34,19 +34,25 @@ type sizes = {
   box_zero   : int;
 }
 
-let bytes = {
-  public_key=32; secret_key=32; beforenm=32; nonce=24; zero=32; box_zero=16;
-}
-
 let crypto_module = "crypto_box"
 let ciphersuite = "curve25519xsalsa20poly1305"
 let impl = "ref"
-let prefix = Printf.sprintf "%s_%s_%s" crypto_module ciphersuite impl
 
 module C = struct
   open Foreign
   type buffer = uchar Ctypes.ptr
   type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
+
+  let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
+  let sz_query_type = void @-> returning int
+  let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
+  let secretkeybytes = foreign (const^"_secretkeybytes") sz_query_type
+  let beforenmbytes = foreign (const^"_beforenmbytes") sz_query_type
+  let noncebytes = foreign (const^"_noncebytes") sz_query_type
+  let zerobytes = foreign (const^"_zerobytes") sz_query_type
+  let boxzerobytes = foreign (const^"_boxzerobytes") sz_query_type
+
+  let prefix = Printf.sprintf "%s_%s" const impl
 
   let keypair = foreign (prefix^"_keypair")
     (ptr uchar @-> ptr uchar @-> returning int)
@@ -68,6 +74,15 @@ module C = struct
 
   let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
 end
+
+let bytes = {
+  public_key=C.publickeybytes ();
+  secret_key=C.secretkeybytes ();
+  beforenm=C.beforenmbytes ();
+  nonce=C.noncebytes ();
+  zero=C.zerobytes ();
+  box_zero=C.boxzerobytes ();
+}
 
 module type SERIALIZATION = sig
   type t
