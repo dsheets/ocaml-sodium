@@ -46,7 +46,7 @@ module C = struct
   type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
   let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
-  let sz_query_type = void @-> returning int
+  let sz_query_type = void @-> returning size_t
   let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
   let secretkeybytes = foreign (const^"_secretkeybytes") sz_query_type
   let beforenmbytes = foreign (const^"_beforenmbytes") sz_query_type
@@ -78,12 +78,12 @@ module C = struct
 end
 
 let bytes = {
-  public_key=C.publickeybytes ();
-  secret_key=C.secretkeybytes ();
-  beforenm=C.beforenmbytes ();
-  nonce=C.noncebytes ();
-  zero=C.zerobytes ();
-  box_zero=C.boxzerobytes ();
+  public_key=Size_t.to_int (C.publickeybytes ());
+  secret_key=Size_t.to_int (C.secretkeybytes ());
+  beforenm  =Size_t.to_int (C.beforenmbytes ());
+  nonce     =Size_t.to_int (C.noncebytes ());
+  zero      =Size_t.to_int (C.zerobytes ());
+  box_zero  =Size_t.to_int (C.boxzerobytes ());
 }
 
 module type SERIALIZATION = sig
