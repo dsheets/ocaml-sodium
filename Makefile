@@ -16,8 +16,12 @@ build: prep pack
 
 all: prep pack install
 
-prep:
+prep: _build/.stamp
+	@ :
+
+_build/.stamp:
 	mkdir -p _build/lib
+	@touch $@
 
 pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
 
