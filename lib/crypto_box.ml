@@ -115,6 +115,7 @@ module String = struct
   ) s
 end
 
+(* TODO: alignment? *)
 module Make(T : SERIALIZATION) = struct
   let serialize_public_key = T.of_octets 0
   let serialize_secret_key = T.of_octets 0

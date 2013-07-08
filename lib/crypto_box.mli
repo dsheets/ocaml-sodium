@@ -1,3 +1,7 @@
+(** A binding to the {{: http://nacl.cr.yp.to/box.html } crypto_box}
+    module of {{: https://github.com/jedisct1/libsodium } libsodium}
+    wrapping {{: http://nacl.cr.yp.to/ } NaCl} *)
+
 exception VerificationFailure
 
 type octets
