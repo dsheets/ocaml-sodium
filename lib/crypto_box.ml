@@ -18,7 +18,6 @@
 open Ctypes
 open Unsigned
 open PosixTypes
-open Foreign
 
 type octets = uchar Array.t
 type public_key  = octets
@@ -45,6 +44,7 @@ let impl = "ref"
 let prefix = Printf.sprintf "%s_%s_%s" crypto_module ciphersuite impl
 
 module C = struct
+  open Foreign
   type buffer = uchar Ctypes.ptr
   type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
