@@ -107,7 +107,7 @@ module Make(T : SERIALIZATION) = struct
     assert (ret = 0); (* TODO: exn *)
     (pk,sk)
 
-  let box sk pk message nonce =
+  let box sk pk message ~nonce =
     let mlen = T.length message + bytes.zero in
     let c = Array.make uchar mlen in
     let m = Array.make uchar ~initial:UChar.zero mlen in
@@ -118,7 +118,7 @@ module Make(T : SERIALIZATION) = struct
     assert (ret = 0); (* TODO: exn *)
     c
 
-  let box_open sk pk crypt nonce =
+  let box_open sk pk crypt ~nonce =
     let clen = Array.length crypt in
     let m = Array.make uchar clen in
     let ret = C.box_open (Array.start m) (Array.start crypt) (ULLong.of_int clen)
@@ -133,7 +133,7 @@ module Make(T : SERIALIZATION) = struct
     assert (ret = 0); (* TODO: exn *)
     k
 
-  let box_afternm k message nonce =
+  let box_afternm k message ~nonce =
     let mlen = T.length message + bytes.zero in
     let c = Array.make uchar mlen in
     let m = Array.make uchar ~initial:UChar.zero mlen in
@@ -144,7 +144,7 @@ module Make(T : SERIALIZATION) = struct
     assert (ret = 0); (* TODO: exn *)
     c
 
-  let box_open_afternm k crypt nonce =
+  let box_open_afternm k crypt ~nonce =
     let clen = Array.length crypt in
     let m = Array.make uchar clen in
     let ret = C.box_open_afternm (Array.start m) (Array.start crypt)

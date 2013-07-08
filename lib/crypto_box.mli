@@ -35,9 +35,9 @@ module Make : functor (T : SERIALIZATION) -> sig
   val serialize_ciphertext : ciphertext -> T.t
 
   val keypair : unit -> public_key * secret_key
-  val box : secret_key -> public_key -> T.t -> Nonce.t -> ciphertext
-  val box_open : secret_key -> public_key -> ciphertext -> Nonce.t -> T.t
+  val box : secret_key -> public_key -> T.t -> nonce:Nonce.t -> ciphertext
+  val box_open : secret_key -> public_key -> ciphertext -> nonce:Nonce.t -> T.t
   val box_beforenm : secret_key -> public_key -> channel_key
-  val box_afternm : channel_key -> T.t -> Nonce.t -> ciphertext
-  val box_open_afternm : channel_key -> ciphertext -> Nonce.t -> T.t
+  val box_afternm : channel_key -> T.t -> nonce:Nonce.t -> ciphertext
+  val box_open_afternm : channel_key -> ciphertext -> nonce:Nonce.t -> T.t
 end
