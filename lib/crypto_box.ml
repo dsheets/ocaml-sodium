@@ -19,6 +19,8 @@ open Ctypes
 open Unsigned
 open PosixTypes
 
+exception VerificationFailure
+
 type octets = uchar Array.t
 type public_key  = octets
 type secret_key  = octets
@@ -139,7 +141,7 @@ module Make(T : SERIALIZATION) = struct
     let ret = C.box_open (Array.start m) (Array.start crypt) (ULLong.of_int clen)
       (Array.start (Nonce.to_octets nonce)) (Array.start pk) (Array.start sk)
     in
-    assert (ret = 0); (* TODO: exn *)
+    if ret <> 0 then raise VerificationFailure;
     T.of_octets bytes.zero m
 
   let box_beforenm sk pk =
@@ -165,7 +167,7 @@ module Make(T : SERIALIZATION) = struct
     let ret = C.box_open_afternm (Array.start m) (Array.start crypt)
       (ULLong.of_int clen) (Array.start (Nonce.to_octets nonce)) (Array.start k)
     in
-    assert (ret = 0); (* TODO: exn *)
+    if ret <> 0 then raise VerificationFailure;
     T.of_octets bytes.zero m
 end
 

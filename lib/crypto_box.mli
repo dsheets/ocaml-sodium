@@ -1,3 +1,5 @@
+exception VerificationFailure
+
 type octets
 
 type public_key
