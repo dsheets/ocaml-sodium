@@ -20,6 +20,8 @@ val crypto_module : string
 val ciphersuite : string
 val impl : string
 
+val wipe : secret_key -> unit
+
 module type SERIALIZATION = sig
   type t
 

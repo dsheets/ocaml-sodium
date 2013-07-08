@@ -45,6 +45,8 @@ module C = struct
   type buffer = uchar Ctypes.ptr
   type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
+  let memzero = foreign "sodium_memzero" (ptr uchar @-> size_t @-> returning void)
+
   let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
   let sz_query_type = void @-> returning size_t
   let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
@@ -85,6 +87,8 @@ let bytes = {
   zero      =Size_t.to_int (C.zerobytes ());
   box_zero  =Size_t.to_int (C.boxzerobytes ());
 }
+
+let wipe sk = C.memzero (Array.start sk) (Size_t.of_int (Array.length sk))
 
 module type SERIALIZATION = sig
   type t
