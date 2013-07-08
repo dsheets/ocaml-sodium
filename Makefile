@@ -16,8 +16,12 @@ build: prep pack
 
 all: prep pack install
 
-prep:
+prep: _build/.stamp
+	@ :
+
+_build/.stamp:
 	mkdir -p _build/lib
+	@touch $@
 
 pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
 
@@ -36,10 +40,10 @@ pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
 	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
 
 %.so:
-	cc -shared -o $@ -lsodium
+	$(CC) -shared -o $@ -lsodium
 
 META: META.in
-	cp META.in META
+	cp $< $@
 
 install: ${INSTALL}
 	ocamlfind install ${NAME} ${INSTALL}
