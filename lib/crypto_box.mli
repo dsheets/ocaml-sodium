@@ -2,6 +2,7 @@
     module of {{: https://github.com/jedisct1/libsodium } libsodium}
     wrapping {{: http://nacl.cr.yp.to/ } NaCl} *)
 
+(** Raised when decryption/authentication fails *)
 exception VerificationFailure
 
 type octets
@@ -24,6 +25,7 @@ val crypto_module : string
 val ciphersuite : string
 val impl : string
 
+(** Zero the memory of the secret key *)
 val wipe : secret_key -> unit
 
 module type SERIALIZATION = sig
