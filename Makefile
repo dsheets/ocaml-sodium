@@ -40,10 +40,10 @@ pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
 	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
 
 %.so:
-	cc -shared -o $@ -lsodium
+	$(CC) -shared -o $@ -lsodium
 
 META: META.in
-	cp META.in META
+	cp $< $@
 
 install: ${INSTALL}
 	ocamlfind install ${NAME} ${INSTALL}
