@@ -1,8 +1,9 @@
-.PHONY: all build prep pack install reinstall uninstall clean
+.PHONY: all build test prep pack install reinstall uninstall clean
 
 NAME=sodium
 PKGS=ctypes.foreign
 OBJS=crypto
+TESTS=test_crypto_box
 
 OCAMLOPT=ocamlopt
 OCAMLC=ocamlc
@@ -14,7 +15,14 @@ INSTALL=META $(addprefix ${B},${NAME}.cma ${NAME}.cmxa ${NAME}.cmi dll${NAME}.so
 
 build: prep pack
 
-all: prep pack install
+all: build test install
+
+test: build $(addprefix lib_test/,$(addsuffix .native,${TESTS}))
+
+lib_test/test_%.native: lib_test/test_%.ml
+	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS},oUnit \
+	-I lib $@
+	./test_$*.native
 
 prep: _build/.stamp
 	@ :
@@ -54,4 +62,4 @@ uninstall:
 	ocamlfind remove ${NAME}
 
 clean:
-	rm -rf _build META
+	rm -rf _build META $(addsuffix .native,${TESTS})
