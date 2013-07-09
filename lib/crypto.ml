@@ -20,6 +20,8 @@ open Unsigned
 open PosixTypes
 
 exception VerificationFailure
+exception KeyError
+exception NonceError
 
 type octets = uchar Array.t
 
@@ -51,18 +53,12 @@ module Serializer = struct
 end
 
 module Make(T : Serializer.S) = struct
-  module Nonce = struct
-    type t = uchar Array.t
-
-    let zero k = Array.make uchar ~initial:UChar.zero k
-
-    let to_octets nonce = nonce
-  end
-
   module Box = struct
-    type public_key  = octets
-    type secret_key  = octets
-    type channel_key = octets (* secret *)
+    type public
+    type secret
+    type channel (* secret *)
+    type 'a key  = octets
+    type nonce = octets
     type ciphertext  = octets
 
     type sizes = {
@@ -78,6 +74,7 @@ module Make(T : Serializer.S) = struct
     let ciphersuite = "curve25519xsalsa20poly1305"
     let impl = "ref"
 
+    (* TODO: alignment? *)
     module C = struct
       open Foreign
       type buffer = uchar Ctypes.ptr
@@ -129,11 +126,39 @@ module Make(T : Serializer.S) = struct
 
     let wipe sk = C.memzero (Array.start sk) (Size_t.of_int (Array.length sk))
 
-    (* TODO: alignment? *)
-    let serialize_public_key = T.of_octets 0
-    let serialize_secret_key = T.of_octets 0
-    let serialize_channel_key= T.of_octets 0
-    let serialize_ciphertext = T.of_octets 0
+    let compare_keys pk pk' =
+      let klen = Array.length pk in
+      let rec cmp i =
+        if pk.(i) < pk'.(i) then -1
+        else if pk.(i) > pk'.(1) then 1
+        else let j = i+1 in if j=klen then 0 else cmp i
+      in cmp 0
+
+    let read_key sz t =
+      let klen = T.length t in
+      if klen <> sz then raise KeyError;
+      let b = Array.make uchar klen in
+      T.into_octets t 0 b;
+      b
+    let read_public_key = read_key bytes.public_key
+    let read_secret_key = read_key bytes.secret_key
+    let read_channel_key= read_key bytes.beforenm
+    let write_key = T.of_octets 0
+
+    let read_nonce t =
+      let nlen = T.length t in
+      if nlen <> bytes.nonce then raise NonceError;
+      let b = Array.make uchar nlen in
+      T.into_octets t 0 b;
+      b
+    let write_nonce n = T.of_octets 0 n
+
+    let write_ciphertext = T.of_octets bytes.box_zero
+    let read_ciphertext t =
+      let clen = T.length t in
+      let b = Array.make uchar ~initial:UChar.zero (clen + bytes.box_zero) in
+      T.into_octets t bytes.box_zero b;
+      b
 
     let keypair () =
       let pk = Array.make uchar bytes.public_key in
@@ -148,7 +173,7 @@ module Make(T : Serializer.S) = struct
       let m = Array.make uchar ~initial:UChar.zero mlen in
       T.into_octets message bytes.zero m;
       let ret = C.box (Array.start c) (Array.start m) (ULLong.of_int mlen)
-        (Array.start (Nonce.to_octets nonce)) (Array.start pk) (Array.start sk)
+        (Array.start nonce) (Array.start pk) (Array.start sk)
       in
       assert (ret = 0); (* TODO: exn *)
       c
@@ -157,7 +182,7 @@ module Make(T : Serializer.S) = struct
       let clen = Array.length crypt in
       let m = Array.make uchar clen in
       let ret = C.box_open (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start (Nonce.to_octets nonce))
+        (ULLong.of_int clen) (Array.start nonce)
         (Array.start pk) (Array.start sk)
       in
       if ret <> 0 then raise VerificationFailure;
@@ -176,8 +201,7 @@ module Make(T : Serializer.S) = struct
       let m = Array.make uchar ~initial:UChar.zero mlen in
       T.into_octets message bytes.zero m;
       let ret = C.box_afternm (Array.start c) (Array.start m)
-        (ULLong.of_int mlen) (Array.start (Nonce.to_octets nonce))
-        (Array.start k)
+        (ULLong.of_int mlen) (Array.start nonce) (Array.start k)
       in
       assert (ret = 0); (* TODO: exn *)
       c
@@ -186,10 +210,9 @@ module Make(T : Serializer.S) = struct
       let clen = Array.length crypt in
       let m = Array.make uchar clen in
       let ret = C.box_open_afternm (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start (Nonce.to_octets nonce)) (Array.start k)
+        (ULLong.of_int clen) (Array.start nonce) (Array.start k)
       in
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
   end
 end
-

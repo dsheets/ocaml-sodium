@@ -4,6 +4,10 @@
 
 (** Raised when decryption/authentication fails *)
 exception VerificationFailure
+(** Raised when provided keys are not valid *)
+exception KeyError
+(** Raised when provided nonce is not valid *)
+exception NonceError
 
 type octets
 
@@ -20,14 +24,12 @@ module Serializer : sig
 end
 
 module Make : functor (T : Serializer.S) -> sig
-  module Nonce : sig
-    type t
-  end
-
   module Box : sig
-    type public_key
-    type secret_key
-    type channel_key
+    type public
+    type secret
+    type channel
+    type 'a key
+    type nonce
     type ciphertext
 
     type sizes = {
@@ -44,18 +46,25 @@ module Make : functor (T : Serializer.S) -> sig
     val impl : string
 
     (** Zero the memory of the secret key *)
-    val wipe : secret_key -> unit
+    val wipe : secret key -> unit
 
-    val serialize_public_key : public_key -> T.t
-    val serialize_secret_key : secret_key -> T.t
-    val serialize_channel_key: channel_key-> T.t
-    val serialize_ciphertext : ciphertext -> T.t
+    val compare_keys : public key -> public key -> int
+    val write_key : 'a key -> T.t
+    val read_public_key : T.t -> public key
+    val read_secret_key : T.t -> secret key
+    val read_channel_key: T.t -> channel key
 
-    val keypair : unit -> public_key * secret_key
-    val box : secret_key -> public_key -> T.t -> nonce:Nonce.t -> ciphertext
-    val box_open : secret_key -> public_key -> ciphertext -> nonce:Nonce.t -> T.t
-    val box_beforenm : secret_key -> public_key -> channel_key
-    val box_afternm : channel_key -> T.t -> nonce:Nonce.t -> ciphertext
-    val box_open_afternm : channel_key -> ciphertext -> nonce:Nonce.t -> T.t
+    val write_nonce : nonce -> T.t
+    val read_nonce : T.t -> nonce
+
+    val write_ciphertext : ciphertext -> T.t
+    val read_ciphertext : T.t -> ciphertext
+
+    val keypair : unit -> public key * secret key
+    val box : secret key -> public key -> T.t -> nonce:nonce -> ciphertext
+    val box_open : secret key -> public key -> ciphertext -> nonce:nonce -> T.t
+    val box_beforenm : secret key -> public key -> channel key
+    val box_afternm : channel key -> T.t -> nonce:nonce -> ciphertext
+    val box_open_afternm : channel key -> ciphertext -> nonce:nonce -> T.t
   end
 end
