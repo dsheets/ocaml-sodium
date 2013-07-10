@@ -48,7 +48,7 @@ module Make : functor (T : Serializer.S) -> sig
     (** Zero the memory of the secret key *)
     val wipe : secret key -> unit
 
-    val compare_keys : public key -> public key -> int
+    val compare_keys : 'a key -> 'a key -> int
     val write_key : 'a key -> T.t
     val read_public_key : T.t -> public key
     val read_secret_key : T.t -> secret key

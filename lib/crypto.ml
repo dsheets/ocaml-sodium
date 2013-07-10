@@ -124,14 +124,15 @@ module Make(T : Serializer.S) = struct
       box_zero  =Size_t.to_int (C.boxzerobytes ());
     }
 
-    let wipe sk = C.memzero (Array.start sk) (Size_t.of_int (Array.length sk))
+    let wipe sk = C.memzero (Array.start sk)
+      (Size_t.of_int ((Array.length sk) * (sizeof (Array.element_type sk))))
 
-    let compare_keys pk pk' =
-      let klen = Array.length pk in
+    let compare_keys k k' =
+      let klen = Array.length k in
       let rec cmp i =
-        if pk.(i) < pk'.(i) then -1
-        else if pk.(i) > pk'.(1) then 1
-        else let j = i+1 in if j=klen then 0 else cmp i
+        let c = UChar.compare k.(i) k'.(i) in
+        if c = 0 then let j = i+1 in if j=klen then 0 else cmp j
+        else c
       in cmp 0
 
     let read_key sz t =
@@ -153,12 +154,12 @@ module Make(T : Serializer.S) = struct
       b
     let write_nonce n = T.of_octets 0 n
 
-    let write_ciphertext = T.of_octets bytes.box_zero
     let read_ciphertext t =
       let clen = T.length t in
       let b = Array.make uchar ~initial:UChar.zero (clen + bytes.box_zero) in
       T.into_octets t bytes.box_zero b;
       b
+    let write_ciphertext = T.of_octets bytes.box_zero
 
     let keypair () =
       let pk = Array.make uchar bytes.public_key in
