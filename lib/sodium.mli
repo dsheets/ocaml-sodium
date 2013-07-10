@@ -11,7 +11,7 @@ exception NonceError
 
 type octets
 
-module Serializer : sig
+module Serialize : sig
   module type S = sig
     type t
 
@@ -23,7 +23,7 @@ module Serializer : sig
   module String : S with type t = string
 end
 
-module Make : functor (T : Serializer.S) -> sig
+module Make : functor (T : Serialize.S) -> sig
   module Box : sig
     type public
     type secret
@@ -50,11 +50,15 @@ module Make : functor (T : Serializer.S) -> sig
 
     val compare_keys : 'a key -> 'a key -> int
     val write_key : 'a key -> T.t
+    (** Can raise {! exception : KeyError } *)
     val read_public_key : T.t -> public key
+    (** Can raise {! exception : KeyError } *)
     val read_secret_key : T.t -> secret key
+    (** Can raise {! exception : KeyError } *)
     val read_channel_key: T.t -> channel key
 
     val write_nonce : nonce -> T.t
+    (** Can raise {! exception : NonceError } *)
     val read_nonce : T.t -> nonce
 
     val write_ciphertext : ciphertext -> T.t
@@ -62,9 +66,11 @@ module Make : functor (T : Serializer.S) -> sig
 
     val keypair : unit -> public key * secret key
     val box : secret key -> public key -> T.t -> nonce:nonce -> ciphertext
+    (** Can raise {! exception : VerificationFailure } *)
     val box_open : secret key -> public key -> ciphertext -> nonce:nonce -> T.t
     val box_beforenm : secret key -> public key -> channel key
     val box_afternm : channel key -> T.t -> nonce:nonce -> ciphertext
+    (** Can raise {! exception : VerificationFailure } *)
     val box_open_afternm : channel key -> ciphertext -> nonce:nonce -> T.t
   end
 end

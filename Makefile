@@ -2,18 +2,17 @@
 
 NAME=sodium
 PKGS=ctypes.foreign
-OBJS=crypto
+OBJS=sodium
 TESTS=test_crypto_box
 
-OCAMLOPT=ocamlopt
-OCAMLC=ocamlc
-
+CMIS=$(addprefix lib/,$(addsuffix .cmi,${OBJS}))
 CMOS=$(addprefix lib/,$(addsuffix .cmo,${OBJS}))
 CMXS=$(addprefix lib/,$(addsuffix .cmx,${OBJS}))
+CMA=lib/${NAME}.cma
 B=_build/lib/
-INSTALL=META $(addprefix ${B},${NAME}.cma ${NAME}.cmxa ${NAME}.cmi dll${NAME}.so)
+INSTALL=META $(addprefix _build/,${CMA} ${CMXS} ${CMIS} dll${NAME}.so)
 
-build: prep pack
+build: prep ${CMA} ${CMXS}
 
 all: build test install
 
@@ -31,21 +30,14 @@ _build/.stamp:
 	mkdir -p _build/lib
 	@touch $@
 
-pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
-
-%.cmxa: ${CMXS}
-	${OCAMLOPT} -pack -o ${B}${NAME}.cmx $(addprefix _build/,${CMXS})
-	${OCAMLOPT} -a -cclib -lsodium -o ${B}${NAME}.cmxa ${B}${NAME}.cmx
-
-%.cma: ${CMOS}
-	${OCAMLC} -pack -o ${B}${NAME}.cmo $(addprefix _build/,${CMOS})
-	${OCAMLC} -a -dllib -lsodium -o ${B}${NAME}.cma ${B}${NAME}.cmo
-
 %.cmo: %.ml %.mli
 	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
 
+%.cma: ${CMOS}
+	ocamlbuild -use-ocamlfind -lflags -dllib,-lsodium -pkgs ${PKGS} $@
+
 %.cmx: %.ml %.mli
-	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
+	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS} $@
 
 %.so:
 	$(CC) -shared -o $@ -lsodium
@@ -53,7 +45,7 @@ pack: ${B}${NAME}.cma ${B}${NAME}.cmxa
 META: META.in
 	cp $< $@
 
-install: ${INSTALL}
+install: build ${INSTALL}
 	ocamlfind install ${NAME} ${INSTALL}
 
 reinstall: uninstall install

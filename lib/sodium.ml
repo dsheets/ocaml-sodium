@@ -25,7 +25,7 @@ exception NonceError
 
 type octets = uchar Array.t
 
-module Serializer = struct
+module Serialize = struct
   module type S = sig
     type t
 
@@ -52,7 +52,7 @@ module Serializer = struct
   end
 end
 
-module Make(T : Serializer.S) = struct
+module Make(T : Serialize.S) = struct
   module Box = struct
     type public
     type secret
