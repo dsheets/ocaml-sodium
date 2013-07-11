@@ -84,6 +84,24 @@ module C = struct
   let init = foreign "sodium_init" (void @-> returning void)
 end
 
+module Random = struct
+  module C = struct
+    open Foreign
+    let stir = foreign "randombytes_stir" (void @-> returning void)
+    let gen  = foreign "randombytes_buf"
+      (ptr uchar @-> size_t @-> returning void)
+  end
+
+  let stir = C.stir
+
+  module Make(T : Serialize.S) = struct
+    let gen sz =
+      let b = Array.make uchar sz in
+      C.gen (Array.start b) (Size_t.of_int sz);
+      T.of_octets 0 b
+  end
+end
+
 module Box = struct
   type 'a key  = octets
   type nonce = octets

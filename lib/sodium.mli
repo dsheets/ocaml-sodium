@@ -31,6 +31,14 @@ module Serialize : sig
   (*module Ctypes : S with type t = Unsigned.uchar Ctypes.Array.t*)
 end
 
+module Random : sig
+  val stir : unit -> unit
+
+  module Make : functor (T : Serialize.S) -> sig
+    val gen : int -> T.t
+  end
+end
+
 module Box : sig
   type 'a key
   type nonce
