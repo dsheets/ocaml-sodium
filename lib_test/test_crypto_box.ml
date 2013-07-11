@@ -173,29 +173,15 @@ module Test(I : IO)(O : IO) = struct
     ()
 
   let compare_keys_eq ((pk,sk),(pk',sk'),message,nonce) =
-    let ck = Out.box_beforenm sk pk' in
-    let ck' = In.box_beforenm sk' pk in
-    let ck_0 = In.box_beforenm sk pk in
-    let ck_1 = Out.box_beforenm sk' pk' in
     let neq_msg = "different keys shouldn't be equal" in
     assert_equal 0 (Box.compare_keys pk pk);
     assert_equal 0 (Box.compare_keys pk' pk');
-    assert_equal 0 (Box.compare_keys sk sk);
-    assert_equal 0 (Box.compare_keys sk' sk');
-    assert_equal 0 (Box.compare_keys ck ck);
-    assert_equal 0 (Box.compare_keys ck' ck');
-    assert_equal 0 (Box.compare_keys ck ck');
     assert_bool neq_msg (0 <> (Box.compare_keys pk pk'));
-    assert_bool neq_msg (0 <> (Box.compare_keys sk sk'));
-    assert_bool neq_msg (0 <> (Box.compare_keys ck ck_0));
-    assert_bool neq_msg (0 <> (Box.compare_keys ck ck_1));
-    assert_bool neq_msg (0 <> (Box.compare_keys ck_0 ck_1));
     ()
 
   let compare_keys_trans ((pk,sk),(pk',sk'),message,nonce) =
     let (pk'',sk'') = Out.keypair () in
     let pks = List.sort Box.compare_keys [pk;pk';pk''] in
-    let sks = List.sort Box.compare_keys [sk;sk';sk''] in
     let check_trans = function
       | [a;b;c] ->
           assert_equal 1 (Box.compare_keys c b);
@@ -204,7 +190,6 @@ module Test(I : IO)(O : IO) = struct
       | _ -> assert_failure "broken test"
     in
     check_trans pks;
-    check_trans sks;
     ()
 
   let convenience = "convenience" >::: [

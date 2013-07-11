@@ -61,7 +61,7 @@ module Box : sig
   (** Overwrite the key with random bytes *)
   val wipe_key : 'a key -> unit
 
-  val compare_keys : 'a key -> 'a key -> int
+  val compare_keys : public key -> public key -> int
 
   module Make : functor (T : Serialize.S) -> sig
     val write_key : 'a key -> T.t
