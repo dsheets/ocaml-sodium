@@ -85,6 +85,7 @@ module C = struct
 end
 
 module Random = struct
+  (* TODO: support changing generator *)
   module C = struct
     open Foreign
     let stir = foreign "randombytes_stir" (void @-> returning void)
@@ -125,9 +126,6 @@ module Box = struct
     open Foreign
     type buffer = uchar Ctypes.ptr
     type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
-
-    let memzero = foreign "sodium_memzero"
-      (ptr uchar @-> size_t @-> returning void)
 
     let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
     let sz_query_type = void @-> returning size_t
@@ -170,8 +168,9 @@ module Box = struct
     box_zero  =Size_t.to_int (C.boxzerobytes ());
   }
 
-  let wipe sk = C.memzero (Array.start sk)
-    (Size_t.of_int ((Array.length sk) * (sizeof (Array.element_type sk))))
+  let wipe_key k =
+    Random.C.gen (Array.start k)
+      (Size_t.of_int ((Array.length k) * (sizeof (Array.element_type k))))
 
   let compare_keys k k' =
     let klen = Array.length k in

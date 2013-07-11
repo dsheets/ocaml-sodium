@@ -58,8 +58,8 @@ module Box : sig
   val ciphersuite : string
   val impl : string
 
-  (** Zero the memory of the key *)
-  val wipe : 'a key -> unit
+  (** Overwrite the key with random bytes *)
+  val wipe_key : 'a key -> unit
 
   val compare_keys : 'a key -> 'a key -> int
 

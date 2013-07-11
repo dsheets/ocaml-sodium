@@ -162,11 +162,11 @@ module Test(I : IO)(O : IO) = struct
     let ct = In.box sk pk' (I.ts message) ~nonce in
     assert_equal message (O.st (Out.box_open sk' pk ct ~nonce));
     assert_equal message (O.st (Out.box_open_afternm ck cct ~nonce));
-    Box.wipe sk';
+    Box.wipe_key sk';
     assert_raises Sodium.VerificationFailure (fun () ->
       assert (message = (O.st (Out.box_open sk' pk ct ~nonce)))
     );
-    Box.wipe ck;
+    Box.wipe_key ck;
     assert_raises Sodium.VerificationFailure (fun () ->
       assert (message = (O.st (Out.box_open_afternm ck cct ~nonce)))
     );
