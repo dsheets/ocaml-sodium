@@ -23,6 +23,10 @@ exception VerificationFailure
 exception KeyError
 exception NonceError
 
+type public
+type secret
+type channel (* secret *)
+
 type octets = uchar Array.t
 
 module Serialize = struct
@@ -43,98 +47,123 @@ module Serialize = struct
       let sz = Array.length b in
       let s = String.create (sz - start) in
       for i = start to (sz - 1) do
-        s.[i - start] <- char_of_int (UChar.to_int (Array.get b i));
+        s.[i - start] <- char_of_int (UChar.to_int b.(i));
       done; s
 
     let into_octets s start b = String.iteri (fun i c ->
       b.(i + start) <- UChar.of_int (int_of_char c)
     ) s
   end
+
+  type char_bigarray = (char,
+                        Bigarray.int8_unsigned_elt,
+                        Bigarray.c_layout) Bigarray.Array1.t
+  module Bigarray : S with type t = char_bigarray = struct
+    module B = Bigarray
+    type t = char_bigarray
+
+    let length = B.Array1.dim
+
+    let of_octets start b =
+      let sz = Array.length b in
+      let s = B.Array1.create B.char B.c_layout (sz - start) in
+      for i = start to (sz - 1) do
+        s.{i - start} <- char_of_int (UChar.to_int b.(i));
+      done; s
+
+    let into_octets s start b =
+      for i = 0 to (length s) - 1 do
+        b.(i + start) <- UChar.of_int (int_of_char s.{i});
+      done
+  end
 end
 
-module Make(T : Serialize.S) = struct
-  module Box = struct
-    type public
-    type secret
-    type channel (* secret *)
-    type 'a key  = octets
-    type nonce = octets
-    type ciphertext  = octets
+module C = struct
+  open Foreign
 
-    type sizes = {
-      public_key : int;
-      secret_key : int;
-      beforenm   : int;
-      nonce      : int;
-      zero       : int;
-      box_zero   : int;
-    }
+  let init = foreign "sodium_init" (void @-> returning void)
+end
 
-    let crypto_module = "crypto_box"
-    let ciphersuite = "curve25519xsalsa20poly1305"
-    let impl = "ref"
+module Box = struct
+  type 'a key  = octets
+  type nonce = octets
+  type ciphertext  = octets
 
-    (* TODO: alignment? *)
-    module C = struct
-      open Foreign
-      type buffer = uchar Ctypes.ptr
-      type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
+  type sizes = {
+    public_key : int;
+    secret_key : int;
+    beforenm   : int;
+    nonce      : int;
+    zero       : int;
+    box_zero   : int;
+  }
 
-      let memzero = foreign "sodium_memzero"
-        (ptr uchar @-> size_t @-> returning void)
+  let crypto_module = "crypto_box"
+  let ciphersuite = "curve25519xsalsa20poly1305"
+  let impl = "ref"
 
-      let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
-      let sz_query_type = void @-> returning size_t
-      let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
-      let secretkeybytes = foreign (const^"_secretkeybytes") sz_query_type
-      let beforenmbytes = foreign (const^"_beforenmbytes") sz_query_type
-      let noncebytes = foreign (const^"_noncebytes") sz_query_type
-      let zerobytes = foreign (const^"_zerobytes") sz_query_type
-      let boxzerobytes = foreign (const^"_boxzerobytes") sz_query_type
+  (* TODO: alignment? *)
+  module C = struct
+    open Foreign
+    type buffer = uchar Ctypes.ptr
+    type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
-      let prefix = Printf.sprintf "%s_%s" const impl
+    let memzero = foreign "sodium_memzero"
+      (ptr uchar @-> size_t @-> returning void)
 
-      let keypair = foreign (prefix^"_keypair")
-        (ptr uchar @-> ptr uchar @-> returning int)
+    let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
+    let sz_query_type = void @-> returning size_t
+    let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
+    let secretkeybytes = foreign (const^"_secretkeybytes") sz_query_type
+    let beforenmbytes = foreign (const^"_beforenmbytes") sz_query_type
+    let noncebytes = foreign (const^"_noncebytes") sz_query_type
+    let zerobytes = foreign (const^"_zerobytes") sz_query_type
+    let boxzerobytes = foreign (const^"_boxzerobytes") sz_query_type
 
-      let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
-                         @-> ptr uchar @-> ptr uchar @-> ptr uchar
-                         @-> returning int)
+    let prefix = Printf.sprintf "%s_%s" const impl
 
-      let box = foreign (prefix) box_fn_type
-      let box_open = foreign (prefix^"_open") box_fn_type
+    let keypair = foreign (prefix^"_keypair")
+      (ptr uchar @-> ptr uchar @-> returning int)
 
-      let box_afternm_type =
-        (ptr uchar @-> ptr uchar @-> ullong
-         @-> ptr uchar @-> ptr uchar @-> returning int)
+    let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
+                       @-> ptr uchar @-> ptr uchar @-> ptr uchar
+                       @-> returning int)
 
-      let box_beforenm = foreign (prefix^"_beforenm")
-        (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
-      let box_afternm = foreign (prefix^"_afternm") box_afternm_type
+    let box = foreign (prefix) box_fn_type
+    let box_open = foreign (prefix^"_open") box_fn_type
 
-      let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
-    end
+    let box_afternm_type =
+      (ptr uchar @-> ptr uchar @-> ullong
+       @-> ptr uchar @-> ptr uchar @-> returning int)
 
-    let bytes = {
-      public_key=Size_t.to_int (C.publickeybytes ());
-      secret_key=Size_t.to_int (C.secretkeybytes ());
-      beforenm  =Size_t.to_int (C.beforenmbytes ());
-      nonce     =Size_t.to_int (C.noncebytes ());
-      zero      =Size_t.to_int (C.zerobytes ());
-      box_zero  =Size_t.to_int (C.boxzerobytes ());
-    }
+    let box_beforenm = foreign (prefix^"_beforenm")
+      (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
+    let box_afternm = foreign (prefix^"_afternm") box_afternm_type
 
-    let wipe sk = C.memzero (Array.start sk)
-      (Size_t.of_int ((Array.length sk) * (sizeof (Array.element_type sk))))
+    let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
+  end
 
-    let compare_keys k k' =
-      let klen = Array.length k in
-      let rec cmp i =
-        let c = UChar.compare k.(i) k'.(i) in
-        if c = 0 then let j = i+1 in if j=klen then 0 else cmp j
-        else c
-      in cmp 0
+  let bytes = {
+    public_key=Size_t.to_int (C.publickeybytes ());
+    secret_key=Size_t.to_int (C.secretkeybytes ());
+    beforenm  =Size_t.to_int (C.beforenmbytes ());
+    nonce     =Size_t.to_int (C.noncebytes ());
+    zero      =Size_t.to_int (C.zerobytes ());
+    box_zero  =Size_t.to_int (C.boxzerobytes ());
+  }
 
+  let wipe sk = C.memzero (Array.start sk)
+    (Size_t.of_int ((Array.length sk) * (sizeof (Array.element_type sk))))
+
+  let compare_keys k k' =
+    let klen = Array.length k in
+    let rec cmp i =
+      let c = UChar.compare k.(i) k'.(i) in
+      if c = 0 then let j = i+1 in if j=klen then 0 else cmp j
+      else c
+    in cmp 0
+
+  module Make(T : Serialize.S) = struct
     let read_key sz t =
       let klen = T.length t in
       if klen <> sz then raise KeyError;
@@ -161,6 +190,7 @@ module Make(T : Serialize.S) = struct
       b
     let write_ciphertext = T.of_octets bytes.box_zero
 
+    (* TODO: mlock *)
     let keypair () =
       let pk = Array.make uchar bytes.public_key in
       let sk = Array.make uchar bytes.secret_key in
@@ -189,6 +219,7 @@ module Make(T : Serialize.S) = struct
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
 
+    (* TODO: mlock *)
     let box_beforenm sk pk =
       let k = Array.make uchar bytes.beforenm in
       let ret = C.box_beforenm (Array.start k) (Array.start pk)
@@ -217,3 +248,5 @@ module Make(T : Serialize.S) = struct
       T.of_octets bytes.zero m
   end
 end
+;;
+C.init ()

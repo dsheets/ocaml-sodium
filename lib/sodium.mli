@@ -1,6 +1,5 @@
-(** A binding to the {{: http://nacl.cr.yp.to/box.html } crypto_box}
-    module of {{: https://github.com/jedisct1/libsodium } libsodium}
-    wrapping {{: http://nacl.cr.yp.to/ } NaCl} *)
+(** A binding to {{: https://github.com/jedisct1/libsodium } libsodium}
+    which wraps {{: http://nacl.cr.yp.to/ } NaCl} *)
 
 (** Raised when decryption/authentication fails *)
 exception VerificationFailure
@@ -8,6 +7,10 @@ exception VerificationFailure
 exception KeyError
 (** Raised when provided nonce is not valid *)
 exception NonceError
+
+type public
+type secret
+type channel
 
 type octets
 
@@ -21,34 +24,38 @@ module Serialize : sig
   end
 
   module String : S with type t = string
+  module Bigarray :
+    S with type t = (char,
+                     Bigarray.int8_unsigned_elt,
+                     Bigarray.c_layout) Bigarray.Array1.t
+  (*module Ctypes : S with type t = Unsigned.uchar Ctypes.Array.t*)
 end
 
-module Make : functor (T : Serialize.S) -> sig
-  module Box : sig
-    type public
-    type secret
-    type channel
-    type 'a key
-    type nonce
-    type ciphertext
+module Box : sig
+  type 'a key
+  type nonce
+  type ciphertext
 
-    type sizes = {
-      public_key : int;
-      secret_key : int;
-      beforenm : int;
-      nonce : int;
-      zero : int;
-      box_zero : int;
-    }
-    val bytes : sizes
-    val crypto_module : string
-    val ciphersuite : string
-    val impl : string
+  type sizes = {
+    public_key : int;
+    secret_key : int;
+    beforenm : int;
+    nonce : int;
+    zero : int;
+    box_zero : int;
+  }
 
-    (** Zero the memory of the secret key *)
-    val wipe : secret key -> unit
+  val bytes : sizes
+  val crypto_module : string
+  val ciphersuite : string
+  val impl : string
 
-    val compare_keys : 'a key -> 'a key -> int
+  (** Zero the memory of the key *)
+  val wipe : 'a key -> unit
+
+  val compare_keys : 'a key -> 'a key -> int
+
+  module Make : functor (T : Serialize.S) -> sig
     val write_key : 'a key -> T.t
     (** Can raise {! exception : KeyError } *)
     val read_public_key : T.t -> public key
