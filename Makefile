@@ -1,6 +1,7 @@
 .PHONY: all build test prep pack install reinstall uninstall clean
 
 NAME=sodium
+VERSION=0.0.1
 PKGS=ctypes.foreign,bigarray
 OBJS=sodium
 TESTS=test_crypto_box
@@ -52,7 +53,8 @@ _build/.stamp:
 	$(CC) -shared -o $@ -lsodium
 
 META: META.in
-	cp $< $@
+	sed s/%%VERSION%%/${VERSION}/ < META.in \
+	| sed s/%%PACKAGES%%/${PKGS}/ > META
 
 install: build ${INSTALL}
 	ocamlfind install ${NAME} ${INSTALL}
