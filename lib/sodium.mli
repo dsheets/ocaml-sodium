@@ -40,7 +40,7 @@ module Random : sig
 end
 
 module Box : sig
-  type 'a key
+  type 'a box_key
   type nonce
   type ciphertext
 
@@ -59,18 +59,18 @@ module Box : sig
   val impl : string
 
   (** Overwrite the key with random bytes *)
-  val wipe_key : 'a key -> unit
+  val wipe_key : 'a box_key -> unit
 
-  val compare_keys : public key -> public key -> int
+  val compare_keys : public box_key -> public box_key -> int
 
   module Make : functor (T : Serialize.S) -> sig
-    val write_key : 'a key -> T.t
+    val box_write_key : 'a box_key -> T.t
     (** Can raise {! exception : KeyError } *)
-    val read_public_key : T.t -> public key
+    val box_read_public_key : T.t -> public box_key
     (** Can raise {! exception : KeyError } *)
-    val read_secret_key : T.t -> secret key
+    val box_read_secret_key : T.t -> secret box_key
     (** Can raise {! exception : KeyError } *)
-    val read_channel_key: T.t -> channel key
+    val box_read_channel_key: T.t -> channel box_key
 
     val write_nonce : nonce -> T.t
     (** Can raise {! exception : NonceError } *)
@@ -79,13 +79,15 @@ module Box : sig
     val write_ciphertext : ciphertext -> T.t
     val read_ciphertext : T.t -> ciphertext
 
-    val keypair : unit -> public key * secret key
-    val box : secret key -> public key -> T.t -> nonce:nonce -> ciphertext
+    val box_keypair : unit -> public box_key * secret box_key
+    val box :
+      secret box_key -> public box_key -> T.t -> nonce:nonce -> ciphertext
     (** Can raise {! exception : VerificationFailure } *)
-    val box_open : secret key -> public key -> ciphertext -> nonce:nonce -> T.t
-    val box_beforenm : secret key -> public key -> channel key
-    val box_afternm : channel key -> T.t -> nonce:nonce -> ciphertext
+    val box_open :
+      secret box_key -> public box_key -> ciphertext -> nonce:nonce -> T.t
+    val box_beforenm : secret box_key -> public box_key -> channel box_key
+    val box_afternm : channel box_key -> T.t -> nonce:nonce -> ciphertext
     (** Can raise {! exception : VerificationFailure } *)
-    val box_open_afternm : channel key -> ciphertext -> nonce:nonce -> T.t
+    val box_open_afternm : channel box_key -> ciphertext -> nonce:nonce -> T.t
   end
 end

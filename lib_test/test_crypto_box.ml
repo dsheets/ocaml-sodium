@@ -31,7 +31,8 @@ module Test(I : IO)(O : IO) = struct
 
   let setup _ =
     let nonce = In.read_nonce (I.ts "012345678901234567890123") in
-    (In.keypair (),Out.keypair (), "The rooster crows at midnight.",nonce)
+    (In.box_keypair (),Out.box_keypair (),
+     "The rooster crows at midnight.",nonce)
 
   let teardown _ = ()
 
@@ -45,7 +46,7 @@ module Test(I : IO)(O : IO) = struct
 
   let right_inverse_fail_sk ((pk,sk),(pk',sk'),message,nonce) =
     let perturb_sk sk fn =
-      Out.read_secret_key (O.ts (fn (O.st (Out.write_key sk)))) in
+      Out.box_read_secret_key (O.ts (fn (O.st (Out.box_write_key sk)))) in
     assert_raises Sodium.KeyError (fun () ->
       Out.box_open (perturb_sk sk' drop_byte) pk
         (In.box sk pk' (I.ts message) ~nonce) ~nonce);
@@ -59,7 +60,7 @@ module Test(I : IO)(O : IO) = struct
 
   let right_inverse_fail_pk ((pk,sk),(pk',sk'),message,nonce) =
     let perturb_pk pk fn =
-      Out.read_public_key (O.ts (fn (O.st (Out.write_key sk)))) in
+      Out.box_read_public_key (O.ts (fn (O.st (Out.box_write_key sk)))) in
     assert_raises Sodium.KeyError (fun () ->
       Out.box_open sk' pk (In.box sk (perturb_pk pk' drop_byte)
                              (I.ts message) ~nonce) ~nonce);
@@ -107,8 +108,8 @@ module Test(I : IO)(O : IO) = struct
 
   let channel_key_eq ((pk,sk),(pk',sk'),message,nonce) =
     assert_equal
-      (O.st (Out.write_key (Out.box_beforenm sk pk')))
-      (I.st (In.write_key (In.box_beforenm sk' pk)))
+      (O.st (Out.box_write_key (Out.box_beforenm sk pk')))
+      (I.st (In.box_write_key (In.box_beforenm sk' pk)))
 
   let right_inverse_channel_key ((pk,sk),(pk',sk'),message,nonce) =
     let ck = In.box_beforenm sk pk' in
@@ -180,7 +181,7 @@ module Test(I : IO)(O : IO) = struct
     ()
 
   let compare_keys_trans ((pk,sk),(pk',sk'),message,nonce) =
-    let (pk'',sk'') = Out.keypair () in
+    let (pk'',sk'') = Out.box_keypair () in
     let pks = List.sort Box.compare_keys [pk;pk';pk''] in
     let check_trans = function
       | [a;b;c] ->
@@ -228,8 +229,8 @@ module Test(I : IO)(O : IO) = struct
       pynacl_test
       ["-f"; "box";
        hex_of_str message; hex_of_str (I.st (In.write_nonce nonce));
-       hex_of_str (I.st (In.write_key pk));
-       hex_of_str (O.st (Out.write_key sk'))]
+       hex_of_str (I.st (In.box_write_key pk));
+       hex_of_str (O.st (Out.box_write_key sk'))]
 
   let pynacl_box_open ((pk,sk),(pk',sk'),message,nonce) =
     let c = In.box sk' pk (I.ts message) ~nonce in
@@ -239,16 +240,16 @@ module Test(I : IO)(O : IO) = struct
       ["-f"; "box_open";
        hex_of_str (O.st (Out.write_ciphertext c));
        hex_of_str (O.st (Out.write_nonce nonce));
-       hex_of_str (I.st (In.write_key pk'));
-       hex_of_str (I.st (In.write_key sk))]
+       hex_of_str (I.st (In.box_write_key pk'));
+       hex_of_str (I.st (In.box_write_key sk))]
 
   let pynacl_box_beforenm ((pk,sk),(pk',sk'),message,nonce) =
     assert_command
-      ~foutput:(check_nacl (O.st (Out.write_key (In.box_beforenm sk' pk))))
+      ~foutput:(check_nacl (O.st (Out.box_write_key (In.box_beforenm sk' pk))))
       pynacl_test
       ["-f"; "box_beforenm";
-       hex_of_str (O.st (Out.write_key pk));
-       hex_of_str (O.st (Out.write_key sk'))]
+       hex_of_str (O.st (Out.box_write_key pk));
+       hex_of_str (O.st (Out.box_write_key sk'))]
 
   let pynacl_box_afternm ((pk,sk),(pk',sk'),message,nonce) =
     let k = Out.box_beforenm sk' pk in
@@ -258,7 +259,7 @@ module Test(I : IO)(O : IO) = struct
       pynacl_test
       ["-f"; "box_afternm";
        hex_of_str message; hex_of_str (I.st (In.write_nonce nonce));
-       hex_of_str (O.st (Out.write_key k))]
+       hex_of_str (O.st (Out.box_write_key k))]
 
   let pynacl_box_open_afternm ((pk,sk),(pk',sk'),message,nonce) =
     let k = In.box_beforenm sk' pk in
@@ -269,7 +270,7 @@ module Test(I : IO)(O : IO) = struct
       ["-f"; "box_open_afternm";
        hex_of_str (O.st (Out.write_ciphertext c));
        hex_of_str (I.st (In.write_nonce nonce));
-       hex_of_str (I.st (In.write_key k))]
+       hex_of_str (I.st (In.box_write_key k))]
 
   let pynacl = "pynacl" >::: [
     "test_box"

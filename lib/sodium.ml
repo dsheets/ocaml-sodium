@@ -104,7 +104,7 @@ module Random = struct
 end
 
 module Box = struct
-  type 'a key  = octets
+  type 'a box_key  = octets
   type nonce = octets
   type ciphertext  = octets
 
@@ -187,10 +187,10 @@ module Box = struct
       let b = Array.make uchar klen in
       T.into_octets t 0 b;
       b
-    let read_public_key = read_key bytes.public_key
-    let read_secret_key = read_key bytes.secret_key
-    let read_channel_key= read_key bytes.beforenm
-    let write_key = T.of_octets 0
+    let box_read_public_key = read_key bytes.public_key
+    let box_read_secret_key = read_key bytes.secret_key
+    let box_read_channel_key= read_key bytes.beforenm
+    let box_write_key = T.of_octets 0
 
     let read_nonce t =
       let nlen = T.length t in
@@ -207,8 +207,7 @@ module Box = struct
       b
     let write_ciphertext = T.of_octets bytes.box_zero
 
-    (* TODO: mlock *)
-    let keypair () =
+    let box_keypair () =
       let pk = Array.make uchar bytes.public_key in
       let sk = Array.make uchar bytes.secret_key in
       let ret = C.keypair (Array.start pk) (Array.start sk) in
@@ -236,7 +235,6 @@ module Box = struct
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
 
-    (* TODO: mlock *)
     let box_beforenm sk pk =
       let k = Array.make uchar bytes.beforenm in
       let ret = C.box_beforenm (Array.start k) (Array.start pk)
