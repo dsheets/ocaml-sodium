@@ -22,6 +22,7 @@ open PosixTypes
 exception VerificationFailure
 exception KeyError
 exception NonceError
+exception SeedError
 
 type public
 type secret
@@ -103,8 +104,20 @@ module Random = struct
   end
 end
 
+let wipe_octets o =
+  Random.C.gen (Array.start o)
+    (Size_t.of_int ((Array.length o) * (sizeof (Array.element_type o))))
+
+let compare_octets o o' =
+  let olen = Array.length o in
+  let rec cmp i =
+    let c = UChar.compare o.(i) o'.(i) in
+    if c = 0 then let j = i+1 in if j=olen then 0 else cmp j
+    else c
+  in cmp 0
+
 module Box = struct
-  type 'a box_key  = octets
+  type 'a key  = octets
   type nonce = octets
   type ciphertext  = octets
 
@@ -119,7 +132,6 @@ module Box = struct
 
   let crypto_module = "crypto_box"
   let ciphersuite = "curve25519xsalsa20poly1305"
-  let impl = "ref"
 
   (* TODO: alignment? *)
   module C = struct
@@ -127,18 +139,16 @@ module Box = struct
     type buffer = uchar Ctypes.ptr
     type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
-    let const = Printf.sprintf "%s_%s" crypto_module ciphersuite
+    let prefix = crypto_module ^"_"^ ciphersuite
     let sz_query_type = void @-> returning size_t
-    let publickeybytes = foreign (const^"_publickeybytes") sz_query_type
-    let secretkeybytes = foreign (const^"_secretkeybytes") sz_query_type
-    let beforenmbytes = foreign (const^"_beforenmbytes") sz_query_type
-    let noncebytes = foreign (const^"_noncebytes") sz_query_type
-    let zerobytes = foreign (const^"_zerobytes") sz_query_type
-    let boxzerobytes = foreign (const^"_boxzerobytes") sz_query_type
+    let publickeybytes = foreign (prefix^"_publickeybytes") sz_query_type
+    let secretkeybytes = foreign (prefix^"_secretkeybytes") sz_query_type
+    let beforenmbytes = foreign (prefix^"_beforenmbytes") sz_query_type
+    let noncebytes = foreign (prefix^"_noncebytes") sz_query_type
+    let zerobytes = foreign (prefix^"_zerobytes") sz_query_type
+    let boxzerobytes = foreign (prefix^"_boxzerobytes") sz_query_type
 
-    let prefix = Printf.sprintf "%s_%s" const impl
-
-    let keypair = foreign (prefix^"_keypair")
+    let box_keypair = foreign (prefix^"_keypair")
       (ptr uchar @-> ptr uchar @-> returning int)
 
     let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
@@ -168,17 +178,8 @@ module Box = struct
     box_zero  =Size_t.to_int (C.boxzerobytes ());
   }
 
-  let wipe_key k =
-    Random.C.gen (Array.start k)
-      (Size_t.of_int ((Array.length k) * (sizeof (Array.element_type k))))
-
-  let compare_keys k k' =
-    let klen = Array.length k in
-    let rec cmp i =
-      let c = UChar.compare k.(i) k'.(i) in
-      if c = 0 then let j = i+1 in if j=klen then 0 else cmp j
-      else c
-    in cmp 0
+  let wipe_key = wipe_octets
+  let compare_keys = compare_octets
 
   module Make(T : Serialize.S) = struct
     let read_key sz t =
@@ -192,25 +193,25 @@ module Box = struct
     let box_read_channel_key= read_key bytes.beforenm
     let box_write_key = T.of_octets 0
 
-    let read_nonce t =
+    let box_read_nonce t =
       let nlen = T.length t in
       if nlen <> bytes.nonce then raise NonceError;
       let b = Array.make uchar nlen in
       T.into_octets t 0 b;
       b
-    let write_nonce n = T.of_octets 0 n
+    let box_write_nonce n = T.of_octets 0 n
 
-    let read_ciphertext t =
+    let box_read_ciphertext t =
       let clen = T.length t in
       let b = Array.make uchar ~initial:UChar.zero (clen + bytes.box_zero) in
       T.into_octets t bytes.box_zero b;
       b
-    let write_ciphertext = T.of_octets bytes.box_zero
+    let box_write_ciphertext = T.of_octets bytes.box_zero
 
     let box_keypair () =
       let pk = Array.make uchar bytes.public_key in
       let sk = Array.make uchar bytes.secret_key in
-      let ret = C.keypair (Array.start pk) (Array.start sk) in
+      let ret = C.box_keypair (Array.start pk) (Array.start sk) in
       assert (ret = 0); (* TODO: exn *)
       (pk,sk)
 
@@ -261,6 +262,111 @@ module Box = struct
       in
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
+  end
+end
+
+module Sign = struct
+  type 'a key = octets
+
+  type sizes = {
+    public_key : int;
+    secret_key : int;
+    seed       : int;
+    signature  : int;
+  }
+
+  let crypto_module = "crypto_sign"
+  let ciphersuite = "ed25519"
+
+  module C = struct
+    open Foreign
+
+    let prefix = crypto_module ^"_"^ ciphersuite
+    let sz_query_type = void @-> returning size_t
+    let publickeybytes = foreign (prefix^"_publickeybytes") sz_query_type
+    let secretkeybytes = foreign (prefix^"_secretkeybytes") sz_query_type
+    let seedbytes = foreign (prefix^"_seedbytes") sz_query_type
+    let bytes = foreign (prefix^"_bytes") sz_query_type
+
+    let sign_fn_type =
+      (ptr uchar @-> ptr ullong @-> ptr uchar @-> ullong @-> ptr uchar
+       @-> returning int)
+
+    let sign_seed_keypair = foreign (prefix^"_seed_keypair")
+      (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
+    let sign_keypair = foreign (prefix^"_keypair")
+      (ptr uchar @-> ptr uchar @-> returning int)
+    let sign = foreign (prefix) sign_fn_type
+    let sign_open = foreign (prefix^"_open") sign_fn_type
+  end
+
+  let bytes = {
+    public_key = Size_t.to_int (C.publickeybytes ());
+    secret_key = Size_t.to_int (C.secretkeybytes ());
+    seed       = Size_t.to_int (C.seedbytes ());
+    signature  = Size_t.to_int (C.bytes ());
+  }
+
+  let wipe_key = wipe_octets
+  let compare_keys = compare_octets
+
+  module Make(T : Serialize.S) = struct
+    let read_key sz t =
+      let klen = T.length t in
+      if klen <> sz then raise KeyError;
+      let b = Array.make uchar klen in
+      T.into_octets t 0 b;
+      b
+    let sign_read_public_key = read_key bytes.public_key
+    let sign_read_secret_key = read_key bytes.secret_key
+    let sign_write_key = T.of_octets 0
+
+    let sign_seed_keypair seed =
+      let slen = T.length seed in
+      if slen <> bytes.seed then raise SeedError;
+      let b = Array.make uchar slen in
+      T.into_octets seed 0 b;
+      let pk = Array.make uchar bytes.public_key in
+      let sk = Array.make uchar bytes.secret_key in
+      let ret = C.sign_seed_keypair (Array.start pk) (Array.start sk)
+        (Array.start b) in
+      assert (ret = 0); (* TODO: exn *)
+      (pk,sk)
+
+    let sign_keypair () =
+      let pk = Array.make uchar bytes.public_key in
+      let sk = Array.make uchar bytes.secret_key in
+      let ret = C.sign_keypair (Array.start pk) (Array.start sk) in
+      assert (ret = 0); (* TODO: exn *)
+      (pk,sk)
+
+    let sign sk message =
+      let mlen = T.length message in
+      let smlen = mlen + bytes.signature in
+      let psmlen = allocate ullong (ULLong.of_int 0) in
+      let sm = Array.make uchar smlen in
+      let m = Array.make uchar mlen in
+      T.into_octets message 0 m;
+      let ret = C.sign (Array.start sm) psmlen (Array.start m)
+        (ULLong.of_int mlen) (Array.start sk)
+      in
+      assert (ret = 0); (* TODO: exn *)
+      assert ((ULLong.to_int (!@ psmlen)) = smlen); (* TODO: exn *)
+      T.of_octets 0 sm
+
+    let sign_open pk smessage =
+      let smlen = T.length smessage in
+      let mlen = smlen - bytes.signature in
+      let pmlen = allocate ullong (ULLong.of_int 0) in
+      let m = Array.make uchar mlen in
+      let sm = Array.make uchar smlen in
+      T.into_octets smessage 0 sm;
+      let ret = C.sign_open (Array.start m) pmlen (Array.start sm)
+        (ULLong.of_int smlen) (Array.start pk)
+      in
+      assert (ret = 0); (* TODO: exn *)
+      assert ((ULLong.to_int (!@ pmlen)) = mlen); (* TODO: exn *)
+      T.of_octets 0 m
   end
 end
 ;;

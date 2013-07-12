@@ -30,7 +30,7 @@ module Test(I : IO)(O : IO) = struct
   module Out = Box.Make(O)
 
   let setup _ =
-    let nonce = In.read_nonce (I.ts "012345678901234567890123") in
+    let nonce = In.box_read_nonce (I.ts "012345678901234567890123") in
     (In.box_keypair (),Out.box_keypair (),
      "The rooster crows at midnight.",nonce)
 
@@ -74,7 +74,7 @@ module Test(I : IO)(O : IO) = struct
 
   let right_inverse_fail_ciphertext ((pk,sk),(pk',sk'),message,nonce) =
     let perturb_ciphertext ct fn =
-      Out.read_ciphertext (O.ts (fn (I.st (In.write_ciphertext ct)))) in
+      Out.box_read_ciphertext (O.ts (fn (I.st (In.box_write_ciphertext ct)))) in
     assert_raises Sodium.VerificationFailure (fun () ->
       Out.box_open sk' pk
         (perturb_ciphertext (In.box sk pk' (I.ts message) ~nonce) drop_byte)
@@ -91,7 +91,7 @@ module Test(I : IO)(O : IO) = struct
 
   let right_inverse_fail_nonce ((pk,sk),(pk',sk'),message,nonce) =
     let perturb_nonce n fn =
-      In.read_nonce (I.ts (fn (I.st (In.write_nonce n)))) in
+      In.box_read_nonce (I.ts (fn (I.st (In.box_write_nonce n)))) in
     assert_raises Sodium.NonceError (fun () ->
       Out.box_open sk' pk
         (In.box sk pk' (I.ts message) ~nonce)
@@ -123,7 +123,7 @@ module Test(I : IO)(O : IO) = struct
     let ck = In.box_beforenm sk pk' in
     let ck'= Out.box_beforenm sk' pk in
     let perturb_ciphertext ct fn =
-      Out.read_ciphertext (O.ts (fn (I.st (In.write_ciphertext ct)))) in
+      Out.box_read_ciphertext (O.ts (fn (I.st (In.box_write_ciphertext ct)))) in
     assert_raises Sodium.VerificationFailure (fun () ->
       Out.box_open_afternm ck'
         (perturb_ciphertext (In.box_afternm ck (I.ts message) ~nonce) drop_byte)
@@ -224,11 +224,11 @@ module Test(I : IO)(O : IO) = struct
   let pynacl_test = "lib_test/pynacl_test.py"
   let pynacl_box ((pk,sk),(pk',sk'),message,nonce) =
     assert_command
-      ~foutput:(check_nacl (O.st (Out.write_ciphertext
+      ~foutput:(check_nacl (O.st (Out.box_write_ciphertext
                                       (In.box sk' pk (I.ts message) ~nonce))))
       pynacl_test
       ["-f"; "box";
-       hex_of_str message; hex_of_str (I.st (In.write_nonce nonce));
+       hex_of_str message; hex_of_str (I.st (In.box_write_nonce nonce));
        hex_of_str (I.st (In.box_write_key pk));
        hex_of_str (O.st (Out.box_write_key sk'))]
 
@@ -238,8 +238,8 @@ module Test(I : IO)(O : IO) = struct
       ~foutput:(check_nacl (O.st (Out.box_open sk pk' c ~nonce)))
       pynacl_test
       ["-f"; "box_open";
-       hex_of_str (O.st (Out.write_ciphertext c));
-       hex_of_str (O.st (Out.write_nonce nonce));
+       hex_of_str (O.st (Out.box_write_ciphertext c));
+       hex_of_str (O.st (Out.box_write_nonce nonce));
        hex_of_str (I.st (In.box_write_key pk'));
        hex_of_str (I.st (In.box_write_key sk))]
 
@@ -254,11 +254,11 @@ module Test(I : IO)(O : IO) = struct
   let pynacl_box_afternm ((pk,sk),(pk',sk'),message,nonce) =
     let k = Out.box_beforenm sk' pk in
     assert_command
-      ~foutput:(check_nacl (I.st (In.write_ciphertext
+      ~foutput:(check_nacl (I.st (In.box_write_ciphertext
                                     (Out.box_afternm k (O.ts message) ~nonce))))
       pynacl_test
       ["-f"; "box_afternm";
-       hex_of_str message; hex_of_str (I.st (In.write_nonce nonce));
+       hex_of_str message; hex_of_str (I.st (In.box_write_nonce nonce));
        hex_of_str (O.st (Out.box_write_key k))]
 
   let pynacl_box_open_afternm ((pk,sk),(pk',sk'),message,nonce) =
@@ -268,8 +268,8 @@ module Test(I : IO)(O : IO) = struct
       ~foutput:(check_nacl (O.st (Out.box_open_afternm k c ~nonce)))
       pynacl_test
       ["-f"; "box_open_afternm";
-       hex_of_str (O.st (Out.write_ciphertext c));
-       hex_of_str (I.st (In.write_nonce nonce));
+       hex_of_str (O.st (Out.box_write_ciphertext c));
+       hex_of_str (I.st (In.box_write_nonce nonce));
        hex_of_str (I.st (In.box_write_key k))]
 
   let pynacl = "pynacl" >::: [
