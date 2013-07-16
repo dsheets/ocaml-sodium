@@ -25,6 +25,7 @@ test: build $(addprefix lib_test/,$(addsuffix .${TESTT},${TESTS}))
 lib_test/test_%.${TESTT}: lib_test/test_%.ml
 	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS},oUnit \
 	-I lib $@
+	${MAKE} -C lib_test
 	./test_$*.${TESTT}
 
 prep: _build/.stamp
@@ -65,4 +66,5 @@ uninstall:
 	ocamlfind remove ${NAME}
 
 clean:
+	${MAKE} -C lib_test clean
 	rm -rf _build META $(addsuffix .${TESTT},${TESTS})

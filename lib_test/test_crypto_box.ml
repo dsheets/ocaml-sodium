@@ -221,71 +221,72 @@ module Test(I : IO)(O : IO) = struct
 
   let check_nacl v out = assert_equal (str_of_hex (str_of_stream out)) v
 
-  let pynacl_test = "lib_test/pynacl_test.py"
-  let pynacl_box ((pk,sk),(pk',sk'),message,nonce) =
-    assert_command
-      ~foutput:(check_nacl (O.st (Out.box_write_ciphertext
-                                      (In.box sk' pk (I.ts message) ~nonce))))
-      pynacl_test
-      ["-f"; "box";
-       hex_of_str message; hex_of_str (I.st (In.box_write_nonce nonce));
-       hex_of_str (I.st (In.box_write_key pk));
-       hex_of_str (O.st (Out.box_write_key sk'))]
+  let nacl_test = "lib_test/nacl_test"
+  let nacl_box ((pk,sk),(pk',sk'),message,nonce) =
+    let cs = O.st (Out.box_write_ciphertext
+                     (In.box sk' pk (I.ts message) ~nonce)) in
+    let args = [
+      "box";
+      hex_of_str message; hex_of_str (I.st (In.box_write_nonce nonce));
+      hex_of_str (I.st (In.box_write_key pk));
+      hex_of_str (O.st (Out.box_write_key sk'));
+    ] in
+    assert_command ~foutput:(check_nacl cs) nacl_test args
 
-  let pynacl_box_open ((pk,sk),(pk',sk'),message,nonce) =
+  let nacl_box_open ((pk,sk),(pk',sk'),message,nonce) =
     let c = In.box sk' pk (I.ts message) ~nonce in
     assert_command
       ~foutput:(check_nacl (O.st (Out.box_open sk pk' c ~nonce)))
-      pynacl_test
-      ["-f"; "box_open";
+      nacl_test
+      ["box_open";
        hex_of_str (O.st (Out.box_write_ciphertext c));
        hex_of_str (O.st (Out.box_write_nonce nonce));
        hex_of_str (I.st (In.box_write_key pk'));
        hex_of_str (I.st (In.box_write_key sk))]
 
-  let pynacl_box_beforenm ((pk,sk),(pk',sk'),message,nonce) =
+  let nacl_box_beforenm ((pk,sk),(pk',sk'),message,nonce) =
     assert_command
       ~foutput:(check_nacl (O.st (Out.box_write_key (In.box_beforenm sk' pk))))
-      pynacl_test
-      ["-f"; "box_beforenm";
+      nacl_test
+      ["box_beforenm";
        hex_of_str (O.st (Out.box_write_key pk));
        hex_of_str (O.st (Out.box_write_key sk'))]
 
-  let pynacl_box_afternm ((pk,sk),(pk',sk'),message,nonce) =
+  let nacl_box_afternm ((pk,sk),(pk',sk'),message,nonce) =
     let k = Out.box_beforenm sk' pk in
     assert_command
       ~foutput:(check_nacl (I.st (In.box_write_ciphertext
                                     (Out.box_afternm k (O.ts message) ~nonce))))
-      pynacl_test
-      ["-f"; "box_afternm";
+      nacl_test
+      ["box_afternm";
        hex_of_str message; hex_of_str (I.st (In.box_write_nonce nonce));
        hex_of_str (O.st (Out.box_write_key k))]
 
-  let pynacl_box_open_afternm ((pk,sk),(pk',sk'),message,nonce) =
+  let nacl_box_open_afternm ((pk,sk),(pk',sk'),message,nonce) =
     let k = In.box_beforenm sk' pk in
     let c = In.box_afternm k (I.ts message) ~nonce in
     assert_command
       ~foutput:(check_nacl (O.st (Out.box_open_afternm k c ~nonce)))
-      pynacl_test
-      ["-f"; "box_open_afternm";
+      nacl_test
+      ["box_open_afternm";
        hex_of_str (O.st (Out.box_write_ciphertext c));
        hex_of_str (I.st (In.box_write_nonce nonce));
        hex_of_str (I.st (In.box_write_key k))]
 
-  let pynacl = "pynacl" >::: [
+  let nacl = "nacl" >::: [
     "test_box"
-    >:: (bracket setup pynacl_box teardown);
+    >:: (bracket setup nacl_box teardown);
     "test_box_open"
-    >:: (bracket setup pynacl_box_open teardown);
+    >:: (bracket setup nacl_box_open teardown);
     "test_box_beforenm"
-    >:: (bracket setup pynacl_box_beforenm teardown);
+    >:: (bracket setup nacl_box_beforenm teardown);
     "test_box_afternm"
-    >:: (bracket setup pynacl_box_afternm teardown);
+    >:: (bracket setup nacl_box_afternm teardown);
     "test_box_open_afternm"
-    >:: (bracket setup pynacl_box_open_afternm teardown);
+    >:: (bracket setup nacl_box_open_afternm teardown);
   ]
 
-  let suite = "Test crypto_box" >::: [ invariants; convenience; pynacl; ]
+  let suite = "Test crypto_box" >::: [ invariants; convenience; nacl; ]
 end
 
 module Bigarray = struct
@@ -317,13 +318,13 @@ module BigarrayBigarray = Test(Bigarray)(Bigarray)
 
 let suite = "Test" >::: [
   "String -> String" >:::
-    StringString.([invariants; convenience; pynacl]);
+    StringString.([invariants; convenience; nacl]);
   "Bigarray -> String" >:::
-    BigarrayString.([invariants; convenience; pynacl]);
+    BigarrayString.([invariants; convenience; nacl]);
   "String -> Bigarray" >:::
-    StringBigarray.([invariants; convenience; pynacl]);
+    StringBigarray.([invariants; convenience; nacl]);
   "Bigarray -> Bigarray" >:::
-    BigarrayBigarray.([invariants; convenience; pynacl]);
+    BigarrayBigarray.([invariants; convenience; nacl]);
 ]
 ;;
 run_test_tt_main suite
