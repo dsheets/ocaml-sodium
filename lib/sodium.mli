@@ -30,7 +30,6 @@ module Serialize : sig
     S with type t = (char,
                      Bigarray.int8_unsigned_elt,
                      Bigarray.c_layout) Bigarray.Array1.t
-  (*module Ctypes : S with type t = Unsigned.uchar Ctypes.Array.t*)
 end
 
 module Random : sig
