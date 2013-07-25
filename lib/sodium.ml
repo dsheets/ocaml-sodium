@@ -28,7 +28,17 @@ type public
 type secret
 type channel (* secret *)
 
-type octets = uchar Array.t
+module B = Bigarray
+type octets = (char, B.int8_unsigned_elt, B.c_layout) B.Array1.t
+
+let octets_make ?initial sz =
+  let b = B.(Array1.create char c_layout) sz in
+  match initial with
+  | None -> b
+  | Some i -> B.Array1.fill b i; b
+
+let octets_start octets =
+  from_voidp uchar (to_voidp (bigarray_start array1 octets))
 
 module Serialize = struct
   module type S = sig
@@ -45,14 +55,14 @@ module Serialize = struct
     let length = String.length
 
     let of_octets start b =
-      let sz = Array.length b in
+      let sz = B.Array1.dim b in
       let s = String.create (sz - start) in
       for i = start to (sz - 1) do
-        s.[i - start] <- char_of_int (UChar.to_int b.(i));
+        s.[i - start] <- b.{i};
       done; s
 
     let into_octets s start b = String.iteri (fun i c ->
-      b.(i + start) <- UChar.of_int (int_of_char c)
+      b.{i + start} <- c
     ) s
   end
 
@@ -66,16 +76,10 @@ module Serialize = struct
     let length = B.Array1.dim
 
     let of_octets start b =
-      let sz = Array.length b in
-      let s = B.Array1.create B.char B.c_layout (sz - start) in
-      for i = start to (sz - 1) do
-        s.{i - start} <- char_of_int (UChar.to_int b.(i));
-      done; s
+      B.Array1.sub b start (B.Array1.dim b - start)
 
     let into_octets s start b =
-      for i = 0 to (length s) - 1 do
-        b.(i + start) <- UChar.of_int (int_of_char s.{i});
-      done
+      B.Array1.(blit s (sub b start (dim s)))
   end
 end
 
@@ -98,23 +102,17 @@ module Random = struct
 
   module Make(T : Serialize.S) = struct
     let gen sz =
-      let b = Array.make uchar sz in
-      C.gen (Array.start b) (Size_t.of_int sz);
+      let b = octets_make sz in
+      C.gen (octets_start b) (Size_t.of_int sz);
       T.of_octets 0 b
   end
 end
 
 let wipe_octets o =
-  Random.C.gen (Array.start o)
-    (Size_t.of_int ((Array.length o) * (sizeof (Array.element_type o))))
+  Random.C.gen (octets_start o)
+    (Size_t.of_int (sizeof (bigarray array1 (B.Array1.dim o) B.char)))
 
-let compare_octets o o' =
-  let olen = Array.length o in
-  let rec cmp i =
-    let c = UChar.compare o.(i) o'.(i) in
-    if c = 0 then let j = i+1 in if j=olen then 0 else cmp j
-    else c
-  in cmp 0
+let compare_octets = Pervasives.compare
 
 module Box = struct
   type 'a key  = octets
@@ -185,7 +183,7 @@ module Box = struct
     let read_key sz t =
       let klen = T.length t in
       if klen <> sz then raise KeyError;
-      let b = Array.make uchar klen in
+      let b = octets_make klen in
       T.into_octets t 0 b;
       b
     let box_read_public_key = read_key bytes.public_key
@@ -196,69 +194,69 @@ module Box = struct
     let box_read_nonce t =
       let nlen = T.length t in
       if nlen <> bytes.nonce then raise NonceError;
-      let b = Array.make uchar nlen in
+      let b = octets_make nlen in
       T.into_octets t 0 b;
       b
     let box_write_nonce n = T.of_octets 0 n
 
     let box_read_ciphertext t =
       let clen = T.length t in
-      let b = Array.make uchar ~initial:UChar.zero (clen + bytes.box_zero) in
+      let b = octets_make ~initial:'\000' (clen + bytes.box_zero) in
       T.into_octets t bytes.box_zero b;
       b
     let box_write_ciphertext = T.of_octets bytes.box_zero
 
     let box_keypair () =
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.box_keypair (Array.start pk) (Array.start sk) in
+      let pk = octets_make bytes.public_key in
+      let sk = octets_make bytes.secret_key in
+      let ret = C.box_keypair (octets_start pk) (octets_start sk) in
       assert (ret = 0); (* TODO: exn *)
       (pk,sk)
 
     let box sk pk message ~nonce =
       let mlen = T.length message + bytes.zero in
-      let c = Array.make uchar mlen in
-      let m = Array.make uchar ~initial:UChar.zero mlen in
+      let c = octets_make mlen in
+      let m = octets_make ~initial:'\000' mlen in
       T.into_octets message bytes.zero m;
-      let ret = C.box (Array.start c) (Array.start m) (ULLong.of_int mlen)
-        (Array.start nonce) (Array.start pk) (Array.start sk)
+      let ret = C.box (octets_start c) (octets_start m) (ULLong.of_int mlen)
+        (octets_start nonce) (octets_start pk) (octets_start sk)
       in
       assert (ret = 0); (* TODO: exn *)
       c
 
     let box_open sk pk crypt ~nonce =
-      let clen = Array.length crypt in
-      let m = Array.make uchar clen in
-      let ret = C.box_open (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start nonce)
-        (Array.start pk) (Array.start sk)
+      let clen = B.Array1.dim crypt in
+      let m = octets_make clen in
+      let ret = C.box_open (octets_start m) (octets_start crypt)
+        (ULLong.of_int clen) (octets_start nonce)
+        (octets_start pk) (octets_start sk)
       in
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
 
     let box_beforenm sk pk =
-      let k = Array.make uchar bytes.beforenm in
-      let ret = C.box_beforenm (Array.start k) (Array.start pk)
-        (Array.start sk) in
+      let k = octets_make bytes.beforenm in
+      let ret = C.box_beforenm (octets_start k) (octets_start pk)
+        (octets_start sk) in
       assert (ret = 0); (* TODO: exn *)
       k
 
     let box_afternm k message ~nonce =
       let mlen = T.length message + bytes.zero in
-      let c = Array.make uchar mlen in
-      let m = Array.make uchar ~initial:UChar.zero mlen in
+      let c = octets_make mlen in
+      let m = octets_make ~initial:'\000' mlen in
       T.into_octets message bytes.zero m;
-      let ret = C.box_afternm (Array.start c) (Array.start m)
-        (ULLong.of_int mlen) (Array.start nonce) (Array.start k)
+      let ret = C.box_afternm (octets_start c) (octets_start m)
+        (ULLong.of_int mlen) (octets_start nonce) (octets_start k)
       in
       assert (ret = 0); (* TODO: exn *)
       c
 
     let box_open_afternm k crypt ~nonce =
-      let clen = Array.length crypt in
-      let m = Array.make uchar clen in
-      let ret = C.box_open_afternm (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start nonce) (Array.start k)
+      let clen = B.Array1.dim crypt in
+      let m = octets_make clen in
+      let ret = C.box_open_afternm (octets_start m) (octets_start crypt)
+        (ULLong.of_int clen) (octets_start nonce) (octets_start k)
       in
       if ret <> 0 then raise VerificationFailure;
       T.of_octets bytes.zero m
@@ -314,7 +312,7 @@ module Sign = struct
     let read_key sz t =
       let klen = T.length t in
       if klen <> sz then raise KeyError;
-      let b = Array.make uchar klen in
+      let b = octets_make klen in
       T.into_octets t 0 b;
       b
     let sign_read_public_key = read_key bytes.public_key
@@ -324,19 +322,19 @@ module Sign = struct
     let sign_seed_keypair seed =
       let slen = T.length seed in
       if slen <> bytes.seed then raise SeedError;
-      let b = Array.make uchar slen in
+      let b = octets_make slen in
       T.into_octets seed 0 b;
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.sign_seed_keypair (Array.start pk) (Array.start sk)
-        (Array.start b) in
+      let pk = octets_make bytes.public_key in
+      let sk = octets_make bytes.secret_key in
+      let ret = C.sign_seed_keypair (octets_start pk) (octets_start sk)
+        (octets_start b) in
       assert (ret = 0); (* TODO: exn *)
       (pk,sk)
 
     let sign_keypair () =
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.sign_keypair (Array.start pk) (Array.start sk) in
+      let pk = octets_make bytes.public_key in
+      let sk = octets_make bytes.secret_key in
+      let ret = C.sign_keypair (octets_start pk) (octets_start sk) in
       assert (ret = 0); (* TODO: exn *)
       (pk,sk)
 
@@ -344,11 +342,11 @@ module Sign = struct
       let mlen = T.length message in
       let smlen = mlen + bytes.signature in
       let psmlen = allocate ullong (ULLong.of_int 0) in
-      let sm = Array.make uchar smlen in
-      let m = Array.make uchar mlen in
+      let sm = octets_make smlen in
+      let m = octets_make mlen in
       T.into_octets message 0 m;
-      let ret = C.sign (Array.start sm) psmlen (Array.start m)
-        (ULLong.of_int mlen) (Array.start sk)
+      let ret = C.sign (octets_start sm) psmlen (octets_start m)
+        (ULLong.of_int mlen) (octets_start sk)
       in
       assert (ret = 0); (* TODO: exn *)
       assert ((ULLong.to_int (!@ psmlen)) = smlen); (* TODO: exn *)
@@ -358,11 +356,11 @@ module Sign = struct
       let smlen = T.length smessage in
       let mlen = smlen - bytes.signature in
       let pmlen = allocate ullong (ULLong.of_int 0) in
-      let m = Array.make uchar mlen in
-      let sm = Array.make uchar smlen in
+      let m = octets_make mlen in
+      let sm = octets_make smlen in
       T.into_octets smessage 0 sm;
-      let ret = C.sign_open (Array.start m) pmlen (Array.start sm)
-        (ULLong.of_int smlen) (Array.start pk)
+      let ret = C.sign_open (octets_start m) pmlen (octets_start sm)
+        (ULLong.of_int smlen) (octets_start pk)
       in
       assert (ret = 0); (* TODO: exn *)
       assert ((ULLong.to_int (!@ pmlen)) = mlen); (* TODO: exn *)
