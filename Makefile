@@ -1,4 +1,4 @@
-.PHONY: all build test prep pack install reinstall uninstall clean
+.PHONY: all build test prep install reinstall uninstall clean
 
 NAME=sodium
 VERSION=0.0.1
@@ -22,11 +22,11 @@ all: build test install
 
 test: build $(addprefix lib_test/,$(addsuffix .${TESTT},${TESTS}))
 
-lib_test/test_%.${TESTT}: lib_test/test_%.ml
+lib_test/%.${TESTT}: lib_test/%.ml
 	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS},oUnit \
 	-I lib $@
 	${MAKE} -C lib_test
-	./test_$*.${TESTT}
+	./$*.${TESTT}
 
 prep: _build/.stamp
 	@ :

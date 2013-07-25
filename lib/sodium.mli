@@ -128,7 +128,38 @@ module Sign : sig
   end
 end
 
+module Stream : sig
+  type 'a key
+  type nonce
+
+  type sizes = {
+    key   : int;
+    nonce : int;
+  }
+
+  val bytes : sizes
+  val crypto_module : string
+  val ciphersuite : string
+
+  (** Overwrite the key with random bytes *)
+  val wipe_key : 'a key -> unit
+
+  module Make : functor (T : Serialize.S) -> sig
+    val stream_write_key : 'a key -> T.t
+    (** Can raise {! exception : KeyError } *)
+    val stream_read_secret_key : T.t -> secret key
+
+    val stream_write_nonce : nonce -> T.t
+    (** Can raise {! exception : NonceError } *)
+    val stream_read_nonce : T.t -> nonce
+
+    val stream : secret key -> int -> nonce:nonce -> T.t
+    val stream_xor : secret key -> T.t -> nonce:nonce -> T.t
+  end
+end
+
 module Make : functor (T : Serialize.S) -> sig
   include module type of Box.Make(T)
   include module type of Sign.Make(T)
+  include module type of Stream.Make(T)
 end

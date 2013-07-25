@@ -370,9 +370,83 @@ module Sign = struct
   end
 end
 
+module Stream = struct
+  type 'a key = octets
+  type nonce = octets
+
+  type sizes = {
+    key : int;
+    nonce : int;
+  }
+
+  let crypto_module = "crypto_stream"
+  let ciphersuite = "xsalsa20"
+
+  module C = struct
+    open Foreign
+
+    let prefix = crypto_module ^"_"^ ciphersuite
+    let sz_query_type = void @-> returning size_t
+    let keybytes = foreign (prefix^"_keybytes") sz_query_type
+    let noncebytes = foreign (prefix^"_noncebytes") sz_query_type
+
+    let stream = foreign (prefix)
+      (ptr uchar @-> ullong @-> ptr uchar @-> ptr uchar @-> returning int)
+    let stream_xor = foreign (prefix)
+      (ptr uchar @-> ptr uchar @-> ullong @-> ptr uchar @-> ptr uchar
+       @-> returning int)
+  end
+
+  let bytes = {
+    key   = Size_t.to_int (C.keybytes ());
+    nonce = Size_t.to_int (C.noncebytes ());
+  }
+
+  let wipe_key = wipe_octets
+
+  module Make(T : Serialize.S) = struct
+    let read_key sz t =
+      let klen = T.length t in
+      if klen <> sz then raise KeyError;
+      let b = Array.make uchar klen in
+      T.into_octets t 0 b;
+      b
+    let stream_read_secret_key = read_key bytes.key
+    let stream_write_key = T.of_octets 0
+
+    let stream_read_nonce t =
+      let nlen = T.length t in
+      if nlen <> bytes.nonce then raise NonceError;
+      let b = Array.make uchar nlen in
+      T.into_octets t 0 b;
+      b
+    let stream_write_nonce n = T.of_octets 0 n
+
+    let stream sk len ~nonce =
+      let c = Array.make uchar len in
+      let ret = C.stream (Array.start c) (ULLong.of_int len)
+        (Array.start nonce) (Array.start sk)
+      in
+      assert (ret = 0); (* TODO: exn *)
+      T.of_octets 0 c
+
+    let stream_xor sk message ~nonce =
+      let mlen = T.length message in
+      let m = Array.make uchar mlen in
+      T.into_octets message 0 m;
+      let c = Array.make uchar mlen in
+      let ret = C.stream_xor (Array.start c) (Array.start m)
+        (ULLong.of_int mlen) (Array.start nonce) (Array.start sk)
+      in
+      assert (ret = 0); (* TODO: exn *)
+      T.of_octets 0 c
+  end
+end
+
 module Make(T : Serialize.S) = struct
   include Box.Make(T)
   include Sign.Make(T)
+  include Stream.Make(T)
 end
 ;;
 C.init ()
