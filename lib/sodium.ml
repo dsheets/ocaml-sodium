@@ -31,14 +31,14 @@ type channel (* secret *)
 module B = Bigarray
 type octets = (char, B.int8_unsigned_elt, B.c_layout) B.Array1.t
 
-let octets_make ?initial sz =
-  let b = B.(Array1.create char c_layout) sz in
-  match initial with
-  | None -> b
-  | Some i -> B.Array1.fill b i; b
+let octets_make sz = B.(Array1.create char c_layout) sz
+
+let octets_set b off len v = B.Array1.(fill (sub b off len) v)
 
 let octets_start octets =
   from_voidp uchar (to_voidp (bigarray_start array1 octets))
+
+let octets_length = B.Array1.dim
 
 module Serialize = struct
   module type S = sig
@@ -66,12 +66,8 @@ module Serialize = struct
     ) s
   end
 
-  type char_bigarray = (char,
-                        Bigarray.int8_unsigned_elt,
-                        Bigarray.c_layout) Bigarray.Array1.t
-  module Bigarray : S with type t = char_bigarray = struct
-    module B = Bigarray
-    type t = char_bigarray
+  module Bigarray : S with type t = octets = struct
+    type t = octets
 
     let length = B.Array1.dim
 
@@ -200,9 +196,11 @@ module Box = struct
     let box_write_nonce n = T.of_octets 0 n
 
     let box_read_ciphertext t =
+      let lead = bytes.box_zero in
       let clen = T.length t in
-      let b = octets_make ~initial:'\000' (clen + bytes.box_zero) in
-      T.into_octets t bytes.box_zero b;
+      let b = octets_make (clen + lead) in
+      octets_set b 0 lead '\000';
+      T.into_octets t lead b;
       b
     let box_write_ciphertext = T.of_octets bytes.box_zero
 
@@ -214,10 +212,12 @@ module Box = struct
       (pk,sk)
 
     let box sk pk message ~nonce =
-      let mlen = T.length message + bytes.zero in
+      let lead = bytes.zero in
+      let mlen = T.length message + lead in
       let c = octets_make mlen in
-      let m = octets_make ~initial:'\000' mlen in
-      T.into_octets message bytes.zero m;
+      let m = octets_make mlen in
+      octets_set m 0 lead '\000';
+      T.into_octets message lead m;
       let ret = C.box (octets_start c) (octets_start m) (ULLong.of_int mlen)
         (octets_start nonce) (octets_start pk) (octets_start sk)
       in
@@ -225,7 +225,7 @@ module Box = struct
       c
 
     let box_open sk pk crypt ~nonce =
-      let clen = B.Array1.dim crypt in
+      let clen = octets_length crypt in
       let m = octets_make clen in
       let ret = C.box_open (octets_start m) (octets_start crypt)
         (ULLong.of_int clen) (octets_start nonce)
@@ -242,10 +242,12 @@ module Box = struct
       k
 
     let box_afternm k message ~nonce =
-      let mlen = T.length message + bytes.zero in
+      let lead = bytes.zero in
+      let mlen = T.length message + lead in
       let c = octets_make mlen in
-      let m = octets_make ~initial:'\000' mlen in
-      T.into_octets message bytes.zero m;
+      let m = octets_make mlen in
+      octets_set m 0 lead '\000';
+      T.into_octets message lead m;
       let ret = C.box_afternm (octets_start c) (octets_start m)
         (ULLong.of_int mlen) (octets_start nonce) (octets_start k)
       in
@@ -253,7 +255,7 @@ module Box = struct
       c
 
     let box_open_afternm k crypt ~nonce =
-      let clen = B.Array1.dim crypt in
+      let clen = octets_length crypt in
       let m = octets_make clen in
       let ret = C.box_open_afternm (octets_start m) (octets_start crypt)
         (ULLong.of_int clen) (octets_start nonce) (octets_start k)

@@ -16,6 +16,8 @@ A=lib/${NAME}.a
 B=_build/lib/
 INSTALL=META $(addprefix _build/,${CMA} ${CMXA} ${A} ${CMIS} dll${NAME}.so)
 
+FLAGS=-use-ocamlfind -tag thread
+
 build: prep ${CMA} ${CMXA} ${A}
 
 all: build test install
@@ -23,7 +25,7 @@ all: build test install
 test: build $(addprefix lib_test/,$(addsuffix .${TESTT},${TESTS}))
 
 lib_test/test_%.${TESTT}: lib_test/test_%.ml
-	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS},oUnit \
+	ocamlbuild ${FLAGS} -lflags -cclib,-lsodium -pkgs ${PKGS},oUnit \
 	-I lib $@
 	${MAKE} -C lib_test
 	./test_$*.${TESTT}
@@ -36,19 +38,19 @@ _build/.stamp:
 	@touch $@
 
 %.cmo: %.ml %.mli
-	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
+	ocamlbuild ${FLAGS} -pkgs ${PKGS} $@
 
 %.cma: ${CMOS}
-	ocamlbuild -use-ocamlfind -lflags -dllib,-lsodium -pkgs ${PKGS} $@
+	ocamlbuild ${FLAGS} -lflags -dllib,-lsodium,-thread -pkgs ${PKGS} $@
 
 %.cmx: %.ml %.mli
-	ocamlbuild -use-ocamlfind -pkgs ${PKGS} $@
+	ocamlbuild ${FLAGS} -pkgs ${PKGS} $@
 
 %.cmxa: ${CMXS}
-	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS} $@
+	ocamlbuild ${FLAGS} -lflags -cclib,-lsodium,-thread -pkgs ${PKGS} $@
 
 %.a: ${CMXS}
-	ocamlbuild -use-ocamlfind -lflags -cclib,-lsodium -pkgs ${PKGS} $@
+	ocamlbuild ${FLAGS} -lflags -cclib,-lsodium,-thread -pkgs ${PKGS} $@
 
 %.so:
 	$(CC) -shared -o $@ -lsodium
