@@ -37,7 +37,7 @@ module Random : sig
   val stir : unit -> unit
 
   module Make : functor (T : Serialize.S) -> sig
-    val gen : int -> T.t
+    val random : int -> T.t
   end
 end
 
@@ -129,6 +129,7 @@ module Sign : sig
 end
 
 module Make : functor (T : Serialize.S) -> sig
+  include module type of Random.Make(T)
   include module type of Box.Make(T)
   include module type of Sign.Make(T)
 end
