@@ -97,9 +97,9 @@ module Random = struct
   let stir = C.stir
 
   module Make(T : Serialize.S) = struct
-    let gen sz =
-      let b = octets_make sz in
-      C.gen (octets_start b) (Size_t.of_int sz);
+    let random sz =
+      let b = Array.make uchar sz in
+      C.gen (Array.start b) (Size_t.of_int sz);
       T.of_octets 0 b
   end
 end
@@ -371,6 +371,7 @@ module Sign = struct
 end
 
 module Make(T : Serialize.S) = struct
+  include Random.Make(T)
   include Box.Make(T)
   include Sign.Make(T)
 end
