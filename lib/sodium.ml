@@ -34,6 +34,7 @@ module Serialize = struct
   module type S = sig
     type t
 
+    val create : int -> t
     val length : t -> int
     val of_octets : int -> octets -> t
     val into_octets : t -> int -> octets -> unit
@@ -41,6 +42,8 @@ module Serialize = struct
 
   module String : S with type t = string = struct
     type t = string
+
+    let create = String.create
 
     let length = String.length
 
@@ -62,6 +65,8 @@ module Serialize = struct
   module Bigarray : S with type t = char_bigarray = struct
     module B = Bigarray
     type t = char_bigarray
+
+    let create = octets_make
 
     let length = B.Array1.dim
 
@@ -98,8 +103,8 @@ module Random = struct
 
   module Make(T : Serialize.S) = struct
     let random sz =
-      let b = Array.make uchar sz in
-      C.gen (Array.start b) (Size_t.of_int sz);
+      let b = octets_make sz in
+      C.gen (octets_start b) (Size_t.of_int sz);
       T.of_octets 0 b
   end
 end

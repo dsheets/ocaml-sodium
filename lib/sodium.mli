@@ -20,6 +20,7 @@ module Serialize : sig
   module type S = sig
     type t
 
+    val create : int -> t
     val length : t -> int
     val of_octets : int -> octets -> t
     val into_octets : t -> int -> octets -> unit
