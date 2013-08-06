@@ -117,6 +117,7 @@ let compare_octets = Pervasives.compare
 
 module Box = struct
   type 'a key  = octets
+  type keypair = public key * secret key
   type nonce = octets
   type ciphertext  = octets
 

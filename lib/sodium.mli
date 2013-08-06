@@ -43,6 +43,7 @@ end
 
 module Box : sig
   type 'a key
+  type keypair = public key * secret key
   type nonce
   type ciphertext
 
@@ -80,7 +81,7 @@ module Box : sig
     val box_write_ciphertext : ciphertext -> T.t
     val box_read_ciphertext : T.t -> ciphertext
 
-    val box_keypair : unit -> public key * secret key
+    val box_keypair : unit -> keypair
     val box :
       secret key -> public key -> T.t -> nonce:nonce -> ciphertext
     (** Can raise {! exception : VerificationFailure } *)
