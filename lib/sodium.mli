@@ -111,7 +111,7 @@ module Box : sig
     val box_open_afternm : channel key -> ciphertext -> nonce:nonce -> T.t
   end
 end
-
+(*
 module Sign : sig
   type 'a key
 
@@ -146,9 +146,9 @@ module Sign : sig
     val sign_open : public key -> T.t -> T.t
   end
 end
-
+*)
 module Make : functor (T : Serialize.S) -> sig
   include module type of Random.Make(T)
   include module type of Box.Make(T)
-  include module type of Sign.Make(T)
+(*  include module type of Sign.Make(T)*)
 end
