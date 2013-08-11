@@ -30,6 +30,9 @@ type channel (* secret *)
 
 type octets = uchar Array.t
 
+let octets_make sz = Array.make uchar sz
+let octets_start = Array.start
+
 module Serialize = struct
   module type S = sig
     type t
@@ -66,7 +69,7 @@ module Serialize = struct
     module B = Bigarray
     type t = char_bigarray
 
-    let create = octets_make
+    let create sz = B.(Array1.create char c_layout sz)
 
     let length = B.Array1.dim
 
