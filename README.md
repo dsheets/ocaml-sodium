@@ -25,8 +25,8 @@ Library*](http://cryptojedi.org/papers/coolnacl-20111201.pdf), NaCl is a
 high-level, performant cryptography library exposing a straightforward
 interface.
 
-This binding has not been thoroughly and independently audited so your
-use case must be able to tolerate this uncertainty.
+**This binding has not been thoroughly and independently audited so your
+use case must be able to tolerate this uncertainty.**
 
 *ocaml-sodium* contains functors over serializations both for individual
  *NaCl* modules, e.g. `Sodium.Box.Make`, and as the `Sodium.Make` bundle.

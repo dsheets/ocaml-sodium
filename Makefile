@@ -1,7 +1,7 @@
 .PHONY: all build test prep pack install reinstall uninstall clean
 
 NAME=sodium
-VERSION=0.0.1
+VERSION=0.1.0
 PKGS=ctypes.foreign,bigarray
 OBJS=sodium
 TESTS=test_crypto_box
