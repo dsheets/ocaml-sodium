@@ -18,6 +18,7 @@
 open Ctypes
 open Unsigned
 open PosixTypes
+module Array = CArray
 
 exception VerificationFailure
 exception KeyError
