@@ -221,7 +221,7 @@ module Test(I : IO)(O : IO) = struct
 
   let check_nacl v out = assert_equal (str_of_hex (str_of_stream out)) v
 
-  let nacl_test = "lib_test/nacl_test"
+  let nacl_test = "_build/lib_test/nacl_test"
   let nacl_box ((pk,sk),(pk',sk'),message,nonce) =
     let cs = O.st (Out.box_write_ciphertext
                      (In.box sk' pk (I.ts message) ~nonce)) in
@@ -326,5 +326,6 @@ let suite = "Test" >::: [
   "Bigarray -> Bigarray" >:::
     BigarrayBigarray.([invariants; convenience; nacl]);
 ]
-;;
-run_test_tt_main suite
+
+let _ =
+  run_test_tt_main suite

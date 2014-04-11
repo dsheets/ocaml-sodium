@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <nacl/crypto_box.h>
+#include <sodium/crypto_box.h>
 
 typedef unsigned char uchar;
 

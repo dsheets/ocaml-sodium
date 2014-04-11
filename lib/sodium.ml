@@ -385,5 +385,6 @@ module Make(T : Serialize.S) = struct
   include Box.Make(T)
   include Sign.Make(T)
 end
-;;
-C.init ()
+
+let () =
+  C.init ()
