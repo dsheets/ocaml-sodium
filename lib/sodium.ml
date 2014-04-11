@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +19,6 @@
 open Ctypes
 open Unsigned
 open PosixTypes
-module Array = CArray
 
 exception VerificationFailure
 exception KeyError
@@ -27,72 +27,97 @@ exception SeedError
 
 type public
 type secret
-type channel (* secret *)
+type channel
 
-type octets = uchar Array.t
+type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-let octets_make sz = Array.make uchar sz
-let octets_start = Array.start
-
-module Serialize = struct
+module Storage = struct
   module type S = sig
     type t
 
-    val create : int -> t
-    val length : t -> int
-    val of_octets : int -> octets -> t
-    val into_octets : t -> int -> octets -> unit
+    val create     : int -> t
+    val zero       : t -> int -> int -> unit
+    val blit       : t -> int -> t -> int -> int -> unit
+    val sub        : t -> int -> int -> t
+    val length     : t -> int
+    val len_size_t : t -> size_t
+    val len_ullong : t -> ullong
+    val to_ptr     : t -> uchar ptr
+    val to_string  : t -> string
+    val of_string  : string -> t
+  end
+
+  let coerce_char_uchar = coerce (ptr char) (ptr uchar)
+
+  module Bigstring : S with type t = bigstring = struct
+    open Bigarray
+
+    type t = bigstring
+
+    let create     len = (Array1.create char c_layout len)
+    let length     str = Array1.dim str
+    let len_size_t str = Unsigned.Size_t.of_int (Array1.dim str)
+    let len_ullong str = Unsigned.ULLong.of_int (Array1.dim str)
+    let to_ptr     str = coerce_char_uchar (bigarray_start array1 str)
+    let zero       str pos len = (Array1.fill (Array1.sub str pos len) '\x00')
+
+    let to_string  str =
+      let str' = String.create (Array1.dim str) in
+      String.iteri (fun i _ -> str'.[i] <- Array1.unsafe_get str i) str';
+      str'
+
+    let of_string  str =
+      let str' = create (String.length str) in
+      String.iteri (Array1.unsafe_set str') str;
+      str'
+
+    let sub = Array1.sub
+
+    let blit src srcoff dst dstoff len =
+      Array1.blit (Array1.sub src srcoff len)
+                  (Array1.sub dst dstoff len)
   end
 
   module String : S with type t = string = struct
     type t = string
 
-    let create = String.create
-
-    let length = String.length
-
-    let of_octets start b =
-      let sz = Array.length b in
-      let s = String.create (sz - start) in
-      for i = start to (sz - 1) do
-        s.[i - start] <- char_of_int (UChar.to_int b.(i));
-      done; s
-
-    let into_octets s start b = String.iteri (fun i c ->
-      b.(i + start) <- UChar.of_int (int_of_char c)
-    ) s
-  end
-
-  type char_bigarray = (char,
-                        Bigarray.int8_unsigned_elt,
-                        Bigarray.c_layout) Bigarray.Array1.t
-  module Bigarray : S with type t = char_bigarray = struct
-    module B = Bigarray
-    type t = char_bigarray
-
-    let create sz = B.(Array1.create char c_layout sz)
-
-    let length = B.Array1.dim
-
-    let of_octets start b =
-      let sz = Array.length b in
-      let s = B.Array1.create B.char B.c_layout (sz - start) in
-      for i = start to (sz - 1) do
-        s.{i - start} <- char_of_int (UChar.to_int b.(i));
-      done; s
-
-    let into_octets s start b =
-      for i = 0 to (length s) - 1 do
-        b.(i + start) <- UChar.of_int (int_of_char s.{i});
-      done
+    let create     len = String.create len
+    let length     str = String.length str
+    let len_size_t str = Unsigned.Size_t.of_int (String.length str)
+    let len_ullong str = Unsigned.ULLong.of_int (String.length str)
+    let to_ptr     str = coerce_char_uchar (string_start str)
+    let zero       str pos len = String.fill str pos len '\x00'
+    let to_string  str = str
+    let of_string  str = str
+    let sub            = String.sub
+    let blit           = String.blit
   end
 end
 
 module C = struct
   open Foreign
 
-  let init = foreign "sodium_init" (void @-> returning void)
+  let prefix = "sodium"
+
+  let init    = foreign (prefix^"_init")    (void @-> returning void)
+  let memzero = foreign (prefix^"_memzero") (ptr void @-> size_t @-> returning void)
+  let memcmp  = foreign (prefix^"_memcmp")  (ptr void @-> ptr void @-> size_t @-> returning void)
 end
+
+let wipe str =
+  C.memzero (to_voidp (Storage.String.to_ptr str)) (Storage.String.len_size_t str)
+
+let increment_be_string ?(step=1) s =
+  let s = String.copy s in
+  let rec incr_byte step byteno =
+    let res    = (Char.code s.[byteno]) + step in
+    let lo, hi = res land 0xff, res asr 8 in
+    s.[byteno] <- Char.chr lo;
+    if hi = 0 || byteno = 0 then ()
+    else incr_byte hi (byteno - 1)
+  in
+  incr_byte step ((String.length s) - 1);
+  s
 
 module Random = struct
   (* TODO: support changing generator *)
@@ -105,285 +130,218 @@ module Random = struct
 
   let stir = C.stir
 
-  module Make(T : Serialize.S) = struct
-    let random sz =
-      let b = octets_make sz in
-      C.gen (octets_start b) (Size_t.of_int sz);
-      T.of_octets 0 b
+  module type S = sig
+    type storage
+    val generate_into : storage -> unit
+    val generate      : int -> storage
   end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let generate_into str =
+      C.gen (T.to_ptr str) (T.len_size_t str)
+
+    let generate size =
+      let str = T.create size in
+      generate_into str;
+      str
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
 end
 
-let wipe_octets o =
-  Random.C.gen (Array.start o)
-    (Size_t.of_int ((Array.length o) * (sizeof (Array.element_type o))))
-
-let compare_octets o o' =
-  let olen = Array.length o in
-  let rec cmp i =
-    let c = UChar.compare o.(i) o'.(i) in
-    if c = 0 then let j = i+1 in if j=olen then 0 else cmp j
-    else c
-  in cmp 0
-
 module Box = struct
-  type 'a key  = octets
-  type keypair = public key * secret key
-  type nonce = octets
-  type ciphertext  = octets
-
-  type sizes = {
-    public_key : int;
-    secret_key : int;
-    beforenm   : int;
-    nonce      : int;
-    zero       : int;
-    box_zero   : int;
-  }
-
-  let crypto_module = "crypto_box"
   let ciphersuite = "curve25519xsalsa20poly1305"
 
-  (* TODO: alignment? *)
   module C = struct
     open Foreign
     type buffer = uchar Ctypes.ptr
-    type box = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
+    type box    = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
-    let prefix = crypto_module ^"_"^ ciphersuite
-    let sz_query_type = void @-> returning size_t
-    let publickeybytes = foreign (prefix^"_publickeybytes") sz_query_type
-    let secretkeybytes = foreign (prefix^"_secretkeybytes") sz_query_type
-    let beforenmbytes = foreign (prefix^"_beforenmbytes") sz_query_type
-    let noncebytes = foreign (prefix^"_noncebytes") sz_query_type
-    let zerobytes = foreign (prefix^"_zerobytes") sz_query_type
-    let boxzerobytes = foreign (prefix^"_boxzerobytes") sz_query_type
+    let prefix = "crypto_box_"^ciphersuite
 
-    let box_keypair = foreign (prefix^"_keypair")
-      (ptr uchar @-> ptr uchar @-> returning int)
+    let sz_query_type    = void @-> returning size_t
+    let publickeybytes   = foreign (prefix^"_publickeybytes") sz_query_type
+    let secretkeybytes   = foreign (prefix^"_secretkeybytes") sz_query_type
+    let beforenmbytes    = foreign (prefix^"_beforenmbytes")  sz_query_type
+    let noncebytes       = foreign (prefix^"_noncebytes")     sz_query_type
+    let zerobytes        = foreign (prefix^"_zerobytes")      sz_query_type
+    let boxzerobytes     = foreign (prefix^"_boxzerobytes")   sz_query_type
 
-    let box_fn_type = (ptr uchar @-> ptr uchar @-> ullong
-                       @-> ptr uchar @-> ptr uchar @-> ptr uchar
-                       @-> returning int)
+    let box_keypair      = foreign (prefix^"_keypair")
+                                   (ptr uchar @-> ptr uchar @-> returning int)
 
-    let box = foreign (prefix) box_fn_type
-    let box_open = foreign (prefix^"_open") box_fn_type
+    let box_fn_type      = (ptr uchar @-> ptr uchar @-> ullong
+                            @-> ptr uchar @-> ptr uchar @-> ptr uchar
+                            @-> returning int)
 
-    let box_afternm_type =
-      (ptr uchar @-> ptr uchar @-> ullong
-       @-> ptr uchar @-> ptr uchar @-> returning int)
+    let box              = foreign (prefix) box_fn_type
+    let box_open         = foreign (prefix^"_open") box_fn_type
 
-    let box_beforenm = foreign (prefix^"_beforenm")
-      (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
-    let box_afternm = foreign (prefix^"_afternm") box_afternm_type
+    let box_beforenm     = foreign (prefix^"_beforenm")
+                                   (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
 
+    let box_afternm_type = (ptr uchar @-> ptr uchar @-> ullong
+                            @-> ptr uchar @-> ptr uchar @-> returning int)
+
+    let box_afternm      = foreign (prefix^"_afternm") box_afternm_type
     let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
   end
 
-  let bytes = {
-    public_key=Size_t.to_int (C.publickeybytes ());
-    secret_key=Size_t.to_int (C.secretkeybytes ());
-    beforenm  =Size_t.to_int (C.beforenmbytes ());
-    nonce     =Size_t.to_int (C.noncebytes ());
-    zero      =Size_t.to_int (C.zerobytes ());
-    box_zero  =Size_t.to_int (C.boxzerobytes ());
-  }
+  let public_key_size  = Size_t.to_int (C.publickeybytes ())
+  let secret_key_size  = Size_t.to_int (C.secretkeybytes ())
+  let channel_key_size = Size_t.to_int (C.beforenmbytes ())
+  let nonce_size       = Size_t.to_int (C.noncebytes ())
+  let zero_size        = Size_t.to_int (C.zerobytes ())
+  let box_zero_size    = Size_t.to_int (C.boxzerobytes ())
 
-  let wipe_key = wipe_octets
-  let compare_keys = compare_octets
+  (* Invariant: a key is {public,secret,channel}_key_size bytes long. *)
+  type 'a key = string
+  type keypair = secret key * public key
 
-  module Make(T : Serialize.S) = struct
-    let read_key sz t =
-      let klen = T.length t in
-      if klen <> sz then raise KeyError;
-      let b = Array.make uchar klen in
-      T.into_octets t 0 b;
-      b
-    let box_read_public_key = read_key bytes.public_key
-    let box_read_secret_key = read_key bytes.secret_key
-    let box_read_channel_key= read_key bytes.beforenm
-    let box_write_key = T.of_octets 0
+  (* Invariant: a nonce is nonce_size bytes long. *)
+  type nonce = string
 
-    let box_read_nonce t =
-      let nlen = T.length t in
-      if nlen <> bytes.nonce then raise NonceError;
-      let b = Array.make uchar nlen in
-      T.into_octets t 0 b;
-      b
-    let box_write_nonce n = T.of_octets 0 n
+  let random_keypair () =
+    let pk, sk = String.create public_key_size,
+                 String.create secret_key_size in
+    let ret = C.box_keypair (Storage.String.to_ptr pk) (Storage.String.to_ptr sk) in
+    assert (ret = 0); (* always returns 0 *)
+    sk, pk
 
-    let box_read_ciphertext t =
-      let clen = T.length t in
-      let b = Array.make uchar ~initial:UChar.zero (clen + bytes.box_zero) in
-      T.into_octets t bytes.box_zero b;
-      b
-    let box_write_ciphertext = T.of_octets bytes.box_zero
+  let random_nonce () =
+    Random.String.generate nonce_size
 
-    let box_keypair () =
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.box_keypair (Array.start pk) (Array.start sk) in
-      assert (ret = 0); (* TODO: exn *)
-      (pk,sk)
+  let wipe_key = wipe
 
-    let box sk pk message ~nonce =
-      let mlen = T.length message + bytes.zero in
-      let c = Array.make uchar mlen in
-      let m = Array.make uchar ~initial:UChar.zero mlen in
-      T.into_octets message bytes.zero m;
-      let ret = C.box (Array.start c) (Array.start m) (ULLong.of_int mlen)
-        (Array.start nonce) (Array.start pk) (Array.start sk)
-      in
-      assert (ret = 0); (* TODO: exn *)
-      c
+  let equal_keys a b =
+    let result = ref 0 in
+    for i = 0 to (String.length a) - 1 do
+      result := !result lor ((Char.code a.[i]) lxor (Char.code b.[i]))
+    done;
+    !result = 0
 
-    let box_open sk pk crypt ~nonce =
-      let clen = Array.length crypt in
-      let m = Array.make uchar clen in
-      let ret = C.box_open (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start nonce)
-        (Array.start pk) (Array.start sk)
-      in
-      if ret <> 0 then raise VerificationFailure;
-      T.of_octets bytes.zero m
+  let equal_public_keys = Verify.equal_fn public_key_size
+  let equal_secret_keys = Verify.equal_fn secret_key_size
+  let equal_channel_keys = Verify.equal_fn channel_key_size
+  let compare_public_keys = String.compare
 
-    let box_beforenm sk pk =
-      let k = Array.make uchar bytes.beforenm in
-      let ret = C.box_beforenm (Array.start k) (Array.start pk)
-        (Array.start sk) in
-      assert (ret = 0); (* TODO: exn *)
-      k
+  let nonce_of_string s =
+    if String.length s <> nonce_size then
+      raise (Size_mismatch "Box.nonce_of_string");
+    s
 
-    let box_afternm k message ~nonce =
-      let mlen = T.length message + bytes.zero in
-      let c = Array.make uchar mlen in
-      let m = Array.make uchar ~initial:UChar.zero mlen in
-      T.into_octets message bytes.zero m;
-      let ret = C.box_afternm (Array.start c) (Array.start m)
-        (ULLong.of_int mlen) (Array.start nonce) (Array.start k)
-      in
-      assert (ret = 0); (* TODO: exn *)
-      c
+  let increment_nonce = increment_be_string
 
-    let box_open_afternm k crypt ~nonce =
-      let clen = Array.length crypt in
-      let m = Array.make uchar clen in
-      let ret = C.box_open_afternm (Array.start m) (Array.start crypt)
-        (ULLong.of_int clen) (Array.start nonce) (Array.start k)
-      in
-      if ret <> 0 then raise VerificationFailure;
-      T.of_octets bytes.zero m
-  end
-end
+  let precompute skey pkey =
+    let params = String.create channel_key_size in
+    let ret = C.box_beforenm (Storage.String.to_ptr params)
+                             (Storage.String.to_ptr pkey)
+                             (Storage.String.to_ptr skey) in
+    assert (ret = 0); (* always returns 0 *)
+    params
 
-module Sign = struct
-  type 'a key = octets
+  module type S = sig
+    type storage
 
-  type sizes = {
-    public_key : int;
-    secret_key : int;
-    seed       : int;
-    signature  : int;
-  }
+    val of_public_key   : public key -> storage
+    val to_public_key   : storage -> public key
 
-  let crypto_module = "crypto_sign"
-  let ciphersuite = "ed25519"
+    val of_secret_key   : secret key -> storage
+    val to_secret_key   : storage -> secret key
 
-  module C = struct
-    open Foreign
+    val of_channel_key  : channel key -> storage
+    val to_channel_key  : storage -> channel key
 
-    let prefix = crypto_module ^"_"^ ciphersuite
-    let sz_query_type = void @-> returning size_t
-    let publickeybytes = foreign (prefix^"_publickeybytes") sz_query_type
-    let secretkeybytes = foreign (prefix^"_secretkeybytes") sz_query_type
-    let seedbytes = foreign (prefix^"_seedbytes") sz_query_type
-    let bytes = foreign (prefix^"_bytes") sz_query_type
+    val of_nonce        : nonce -> storage
+    val to_nonce        : storage -> nonce
 
-    let sign_fn_type =
-      (ptr uchar @-> ptr ullong @-> ptr uchar @-> ullong @-> ptr uchar
-       @-> returning int)
+    val box             : secret key -> public key -> storage -> nonce -> storage
+    val box_open        : secret key -> public key -> storage -> nonce -> storage
 
-    let sign_seed_keypair = foreign (prefix^"_seed_keypair")
-      (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
-    let sign_keypair = foreign (prefix^"_keypair")
-      (ptr uchar @-> ptr uchar @-> returning int)
-    let sign = foreign (prefix) sign_fn_type
-    let sign_open = foreign (prefix^"_open") sign_fn_type
+    val fast_box        : channel key -> storage -> nonce -> storage
+    val fast_box_open   : channel key -> storage -> nonce -> storage
   end
 
-  let bytes = {
-    public_key = Size_t.to_int (C.publickeybytes ());
-    secret_key = Size_t.to_int (C.secretkeybytes ());
-    seed       = Size_t.to_int (C.seedbytes ());
-    signature  = Size_t.to_int (C.bytes ());
-  }
+  module Make(T: Storage.S) = struct
+    type storage = T.t
 
-  let wipe_key = wipe_octets
-  let compare_keys = compare_octets
+    let verify_length str len err =
+      if T.length str <> len then raise err
 
-  module Make(T : Serialize.S) = struct
-    let read_key sz t =
-      let klen = T.length t in
-      if klen <> sz then raise KeyError;
-      let b = Array.make uchar klen in
-      T.into_octets t 0 b;
-      b
-    let sign_read_public_key = read_key bytes.public_key
-    let sign_read_secret_key = read_key bytes.secret_key
-    let sign_write_key = T.of_octets 0
+    let of_public_key key =
+      T.of_string key
 
-    let sign_seed_keypair seed =
-      let slen = T.length seed in
-      if slen <> bytes.seed then raise SeedError;
-      let b = Array.make uchar slen in
-      T.into_octets seed 0 b;
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.sign_seed_keypair (Array.start pk) (Array.start sk)
-        (Array.start b) in
-      assert (ret = 0); (* TODO: exn *)
-      (pk,sk)
+    let to_public_key str =
+      verify_length str public_key_size KeyError;
+      T.to_string str
 
-    let sign_keypair () =
-      let pk = Array.make uchar bytes.public_key in
-      let sk = Array.make uchar bytes.secret_key in
-      let ret = C.sign_keypair (Array.start pk) (Array.start sk) in
-      assert (ret = 0); (* TODO: exn *)
-      (pk,sk)
+    let of_secret_key key =
+      T.of_string key
 
-    let sign sk message =
-      let mlen = T.length message in
-      let smlen = mlen + bytes.signature in
-      let psmlen = allocate ullong (ULLong.of_int 0) in
-      let sm = Array.make uchar smlen in
-      let m = Array.make uchar mlen in
-      T.into_octets message 0 m;
-      let ret = C.sign (Array.start sm) psmlen (Array.start m)
-        (ULLong.of_int mlen) (Array.start sk)
-      in
-      assert (ret = 0); (* TODO: exn *)
-      assert ((ULLong.to_int (!@ psmlen)) = smlen); (* TODO: exn *)
-      T.of_octets 0 sm
+    let to_secret_key str =
+      verify_length str secret_key_size KeyError;
+      T.to_string str
 
-    let sign_open pk smessage =
-      let smlen = T.length smessage in
-      let mlen = smlen - bytes.signature in
-      let pmlen = allocate ullong (ULLong.of_int 0) in
-      let m = Array.make uchar mlen in
-      let sm = Array.make uchar smlen in
-      T.into_octets smessage 0 sm;
-      let ret = C.sign_open (Array.start m) pmlen (Array.start sm)
-        (ULLong.of_int smlen) (Array.start pk)
-      in
-      assert (ret = 0); (* TODO: exn *)
-      assert ((ULLong.to_int (!@ pmlen)) = mlen); (* TODO: exn *)
-      T.of_octets 0 m
+    let of_channel_key key =
+      T.of_string key
+
+    let to_channel_key str =
+      verify_length str channel_key_size KeyError;
+      T.to_string str
+
+    let of_nonce nonce =
+      T.of_string nonce
+
+    let to_nonce str =
+      verify_length str nonce_size NonceError;
+      T.to_string str
+
+    let pad a apad bpad f =
+      let a' = T.create (apad + T.length a) in
+      let b' = T.create (T.length a') in
+      T.zero a' 0 apad;
+      T.blit a  0 a' apad (T.length a);
+      f a' b';
+      T.sub b' bpad ((T.length b') - bpad)
+
+    let box skey pkey message nonce =
+      pad message zero_size box_zero_size (fun cleartext ciphertext ->
+        let ret = C.box (T.to_ptr ciphertext) (T.to_ptr cleartext)
+                        (T.len_ullong cleartext)
+                        (Storage.String.to_ptr nonce)
+                        (Storage.String.to_ptr pkey) (Storage.String.to_ptr skey) in
+        assert (ret = 0) (* always returns 0 *))
+
+    let box_open skey pkey ciphertext nonce =
+      pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
+        let ret = C.box_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
+                             (T.len_ullong ciphertext)
+                             (Storage.String.to_ptr nonce)
+                             (Storage.String.to_ptr pkey) (Storage.String.to_ptr skey) in
+        if ret = -1 then raise VerificationFailure)
+
+    let fast_box params message nonce =
+      pad message zero_size box_zero_size (fun cleartext ciphertext ->
+        let ret = C.box_afternm (T.to_ptr ciphertext) (T.to_ptr cleartext)
+                                (T.len_ullong cleartext)
+                                (Storage.String.to_ptr nonce)
+                                (Storage.String.to_ptr params) in
+        assert (ret = 0) (* always returns 0 *))
+
+    let fast_box_open params ciphertext nonce =
+      pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
+        let ret = C.box_open_afternm (T.to_ptr cleartext) (T.to_ptr ciphertext)
+                                     (T.len_ullong ciphertext)
+                                     (Storage.String.to_ptr nonce)
+                                     (Storage.String.to_ptr params) in
+        if ret = -1 then raise VerificationFailure)
   end
-end
 
-module Make(T : Serialize.S) = struct
-  include Random.Make(T)
-  include Box.Make(T)
-  include Sign.Make(T)
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
 end
 
 let () =

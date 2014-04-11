@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,124 +32,137 @@ type public
 type secret
 type channel
 
-type octets
-
-module Serialize : sig
-  module type S = sig
-    type t
-
-    val create : int -> t
-    val length : t -> int
-    val of_octets : int -> octets -> t
-    val into_octets : t -> int -> octets -> unit
-  end
-
-  module String : S with type t = string
-  module Bigarray :
-    S with type t = (char,
-                     Bigarray.int8_unsigned_elt,
-                     Bigarray.c_layout) Bigarray.Array1.t
-  (*module Ctypes : S with type t = Unsigned.uchar Ctypes.Array.t*)
-end
+type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Random : sig
   val stir : unit -> unit
 
-  module Make : functor (T : Serialize.S) -> sig
-    val random : int -> T.t
+  module type S = sig
+    type storage
+
+    val generate_into : storage -> unit
+    val generate : int -> storage
   end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
 end
 
 module Box : sig
   type 'a key
-  type keypair = public key * secret key
+  type keypair = secret key * public key
   type nonce
-  type ciphertext
 
-  type sizes = {
-    public_key : int;
-    secret_key : int;
-    beforenm : int;
-    nonce : int;
-    zero : int;
-    box_zero : int;
-  }
+  (** Ciphersuite used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
+  val ciphersuite       : string
 
-  val bytes : sizes
-  val crypto_module : string
-  val ciphersuite : string
+  (** Size of public keys, in bytes. *)
+  val public_key_size   : int
 
-  (** Overwrite the key with random bytes *)
-  val wipe_key : 'a key -> unit
+  (** Size of secret keys, in bytes. *)
+  val secret_key_size   : int
 
-  val compare_keys : public key -> public key -> int
+  (** Size of channel keys, in bytes. *)
+  val channel_key_size  : int
 
-  module Make : functor (T : Serialize.S) -> sig
-    val box_write_key : 'a key -> T.t
-    (** Can raise {! exception : KeyError } *)
-    val box_read_public_key : T.t -> public key
-    (** Can raise {! exception : KeyError } *)
-    val box_read_secret_key : T.t -> secret key
-    (** Can raise {! exception : KeyError } *)
-    val box_read_channel_key: T.t -> channel key
+  (** Size of nonces, in bytes. *)
+  val nonce_size        : int
 
-    val box_write_nonce : nonce -> T.t
-    (** Can raise {! exception : NonceError } *)
-    val box_read_nonce : T.t -> nonce
+  (** [random_keypair ()] generates a random key pair. *)
+  val random_keypair      : unit -> keypair
 
-    val box_write_ciphertext : ciphertext -> T.t
-    val box_read_ciphertext : T.t -> ciphertext
+  (** [random_nonce ()] generates a random nonce. *)
+  val random_nonce        : unit -> nonce
 
-    val box_keypair : unit -> keypair
-    val box :
-      secret key -> public key -> T.t -> nonce:nonce -> ciphertext
-    (** Can raise {! exception : VerificationFailure } *)
-    val box_open :
-      secret key -> public key -> ciphertext -> nonce:nonce -> T.t
-    val box_beforenm : secret key -> public key -> channel key
-    val box_afternm : channel key -> T.t -> nonce:nonce -> ciphertext
-    (** Can raise {! exception : VerificationFailure } *)
-    val box_open_afternm : channel key -> ciphertext -> nonce:nonce -> T.t
+  (** [nonce_of_string s] creates a nonce out of string [s].
+      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_string     : string -> nonce
+
+  (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
+      number and returns the sum of [n] and [step] with wrap-around.
+      The default [step] is 1. *)
+  val increment_nonce     : ?step:int -> nonce -> nonce
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key            : 'a key -> unit
+
+  (** [precompute sk pk] precomputes the channel key for the secret key [sk]
+      and the public key [pk], which can be used to speed up processing
+      of any number of messages. *)
+  val precompute          : secret key -> public key -> channel key
+
+  (** [equal_public_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_public_keys   : public key -> public key -> bool
+
+  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_secret_keys   : secret key -> secret key -> bool
+
+  (** [equal_channel_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_channel_keys  : channel key -> channel key -> bool
+
+  (** [compare_public_keys a b] compares [a] and [b]. *)
+  val compare_public_keys : public key -> public key -> int
+
+  module type S = sig
+    type storage
+
+    (** [of_public_key k] converts [k] to type [storage]. The result
+        is [sizes.public_key] bytes long. *)
+    val of_public_key   : public key -> storage
+
+    (** [to_public_key s] converts [s] to a public key.
+        If [s] is not [public_key_size] long, [KeyError] is raised. *)
+    val to_public_key   : storage -> public key
+
+    (** [of_secret_key k] converts [k] to type [storage]. The result
+        is [secret_key_size] bytes long. *)
+    val of_secret_key   : secret key -> storage
+
+    (** [to_secret_key s] converts [s] to a secret key.
+        If [s] is not [secret_key_size] long, [KeyError] is raised. *)
+    val to_secret_key   : storage -> secret key
+
+    (** [of_channel_key k] converts [k] to type [storage]. The result
+        is [channel_key_size] bytes long. *)
+    val of_channel_key  : channel key -> storage
+
+    (** [to_channel_key s] converts [s] to a channel key.
+        If [s] is not [channel_key_size] long, [KeyError] is raised. *)
+    val to_channel_key  : storage -> channel key
+
+    (** [of_nonce n] converts [n] to type [storage]. The result
+        is [nonce_size] bytes long. *)
+    val of_nonce        : nonce -> storage
+
+    (** [to_nonce s] converts [s] to a nonce.
+        If [s] is not [nonce_size] long, [NonceError] is raised. *)
+    val to_nonce        : storage -> nonce
+
+    (** [box sk pk m n] encrypts and authenticates a message [m] using
+        the sender's secret key [sk], the receiver's public key [pk], and
+        a nonce [n]. *)
+    val box             : secret key -> public key -> storage -> nonce -> storage
+
+    (** [box_open sk pk c n] verifies and decrypts a ciphertext [c] using
+        the receiver's secret key [sk], the sender's public key [pk], and
+        a nonce [n].
+        If authenticity of message cannot be verified, [VerificationError]
+        is raised. *)
+    val box_open        : secret key -> public key -> storage -> nonce -> storage
+
+    (** [fast_box ck m n] encrypts and authenticates a message [m] using
+        the channel key [ck] precomputed from sender's secret key
+        and the receiver's public key, and a nonce [n]. *)
+    val fast_box        : channel key -> storage -> nonce -> storage
+
+    (** [fast_box_open ck c n] verifies and decrypts a ciphertext [c] using
+        the channel key [ck] precomputed from receiver's secret key
+        and the sender's public key, and a nonce [n].
+        If authenticity of message cannot be verified, [VerificationError]
+        is raised. *)
+    val fast_box_open   : channel key -> storage -> nonce -> storage
   end
-end
-(*
-module Sign : sig
-  type 'a key
 
-  type sizes = {
-    public_key : int;
-    secret_key : int;
-    seed       : int;
-    signature  : int;
-  }
-
-  val bytes : sizes
-  val crypto_module : string
-  val ciphersuite : string
-
-  (** Overwrite the key with random bytes *)
-  val wipe_key : 'a key -> unit
-
-  val compare_keys : public key -> public key -> int
-
-  module Make : functor (T : Serialize.S) -> sig
-    val sign_write_key : 'a key -> T.t
-    (** Can raise {! exception : KeyError } *)
-    val sign_read_public_key : T.t -> public key
-    (** Can raise {! exception : KeyError } *)
-    val sign_read_secret_key : T.t -> secret key
-
-    (** Can raise {! exception : SeedError } *)
-    val sign_seed_keypair : T.t -> public key * secret key
-    val sign_keypair : unit -> public key * secret key
-    val sign : secret key -> T.t -> T.t
-    (** Can raise {! exception : VerificationFailure } *)
-    val sign_open : public key -> T.t -> T.t
-  end
-end
-*)
-module Make : functor (T : Serialize.S) -> sig
-  include module type of Random.Make(T)
-  include module type of Box.Make(T)
-(*  include module type of Sign.Make(T)*)
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
 end
