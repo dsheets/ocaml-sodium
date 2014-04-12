@@ -53,8 +53,8 @@ module Box : sig
   type keypair = secret key * public key
   type nonce
 
-  (** Ciphersuite used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
-  val ciphersuite       : string
+  (** Primitive used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
+  val primitive         : string
 
   (** Size of public keys, in bytes. *)
   val public_key_size   : int
@@ -161,6 +161,37 @@ module Box : sig
         If authenticity of message cannot be verified, [VerificationError]
         is raised. *)
     val fast_box_open   : channel key -> storage -> nonce -> storage
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
+module Hash : sig
+  type hash
+
+  (** Primitive used by this implementation. Currently ["sha512"]. *)
+  val primitive : string
+
+  (** Size of hashes, in bytes. *)
+  val size      : int
+
+  (** [equal a b] checks [a] and [b] for equality in constant time. *)
+  val equal     : hash -> hash -> bool
+
+  module type S = sig
+    type storage
+
+    (** [of_hash h] converts [h] to type [storage]. The result
+        is [size] bytes long. *)
+    val of_hash : hash -> storage
+
+    (** [to_hash s] converts [s] to a hash.
+        If [s] is not [size] long, [Invalid_argument] is raised. *)
+    val to_hash : storage -> hash
+
+    (** [digest m] computes a hash for message [m]. *)
+    val digest  : storage -> hash
   end
 
   module String : S with type storage = string

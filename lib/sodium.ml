@@ -31,6 +31,13 @@ type channel
 
 type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+let const_time_equal a b =
+  let result = ref 0 in
+  for i = 0 to (String.length a) - 1 do
+    result := !result lor ((Char.code a.[i]) lxor (Char.code b.[i]))
+  done;
+  !result = 0
+
 module Storage = struct
   module type S = sig
     type t
@@ -153,14 +160,14 @@ module Random = struct
 end
 
 module Box = struct
-  let ciphersuite = "curve25519xsalsa20poly1305"
+  let primitive = "curve25519xsalsa20poly1305"
 
   module C = struct
     open Foreign
     type buffer = uchar Ctypes.ptr
     type box    = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
-    let prefix = "crypto_box_"^ciphersuite
+    let prefix = "crypto_box_"^primitive
 
     let sz_query_type    = void @-> returning size_t
     let publickeybytes   = foreign (prefix^"_publickeybytes") sz_query_type
@@ -216,12 +223,7 @@ module Box = struct
 
   let wipe_key = wipe
 
-  let equal_keys a b =
-    let result = ref 0 in
-    for i = 0 to (String.length a) - 1 do
-      result := !result lor ((Char.code a.[i]) lxor (Char.code b.[i]))
-    done;
-    !result = 0
+  let equal_keys = const_time_equal
 
   let equal_public_keys = Verify.equal_fn public_key_size
   let equal_secret_keys = Verify.equal_fn secret_key_size
@@ -338,6 +340,60 @@ module Box = struct
                                      (Storage.String.to_ptr nonce)
                                      (Storage.String.to_ptr params) in
         if ret = -1 then raise VerificationFailure)
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
+module Hash = struct
+  let primitive = "sha512"
+
+  module C = struct
+    open Foreign
+    type buffer = uchar Ctypes.ptr
+
+    let prefix        = "crypto_hash_"^primitive
+
+    let sz_query_type = void @-> returning size_t
+    let hashbytes     = foreign (prefix^"_bytes") sz_query_type
+
+    let hash          = foreign (prefix)
+                                (ptr uchar @-> ptr uchar @-> ullong @-> returning int)
+  end
+
+  let size = Size_t.to_int (C.hashbytes ())
+
+  (* Invariant: a hash is size bytes long. *)
+  type hash = string
+
+  let equal_hashes = const_time_equal
+
+  module type S = sig
+    type storage
+
+    val of_hash : hash -> storage
+    val to_hash : storage -> hash
+
+    val digest  : storage -> hash
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let of_hash str =
+      T.of_string str
+
+    let to_hash str =
+      if T.length str <> size then
+        invalid_arg "Sodium.Hash.to_hash"; (* TODO: proper exn? *)
+      T.to_string str
+
+    let digest str =
+      let hash = Storage.String.create size in
+      let ret = C.hash (Storage.String.to_ptr hash) (T.to_ptr str) (T.len_ullong str) in
+      assert (ret = 0); (* always returns 0 *)
+      hash
   end
 
   module String = Make(Storage.String)
