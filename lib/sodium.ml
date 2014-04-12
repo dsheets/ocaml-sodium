@@ -183,8 +183,6 @@ module Box = struct
 
   module C = struct
     open Foreign
-    type buffer = uchar Ctypes.ptr
-    type box    = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
     let prefix = "crypto_box_"^primitive
 
@@ -368,8 +366,6 @@ module Sign = struct
 
   module C = struct
     open Foreign
-    type buffer = uchar Ctypes.ptr
-    type box    = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
 
     let prefix = "crypto_sign_"^primitive
 
@@ -470,7 +466,6 @@ module Scalar_mult = struct
 
   module C = struct
     open Foreign
-    type buffer = uchar Ctypes.ptr
 
     let prefix          = "crypto_scalarmult_"^primitive
 
@@ -543,12 +538,125 @@ module Scalar_mult = struct
   module Bigstring = Make(Storage.Bigstring)
 end
 
+module Secret_box = struct
+  let primitive = "xsalsa20poly1305"
+
+  module C = struct
+    open Foreign
+
+    let prefix = "crypto_secretbox_"^primitive
+
+    let sz_query_type   = void @-> returning size_t
+    let keybytes        = foreign (prefix^"_keybytes")     sz_query_type
+    let noncebytes      = foreign (prefix^"_noncebytes")   sz_query_type
+    let zerobytes       = foreign (prefix^"_zerobytes")    sz_query_type
+    let boxzerobytes    = foreign (prefix^"_boxzerobytes") sz_query_type
+
+    let secretbox_fn_ty = (ptr uchar @-> ptr uchar @-> ullong
+                           @-> ptr uchar @-> ptr uchar @-> returning int)
+
+    let secretbox       = foreign (prefix)         secretbox_fn_ty
+    let secretbox_open  = foreign (prefix^"_open") secretbox_fn_ty
+  end
+
+  let key_size      = Size_t.to_int (C.keybytes ())
+  let nonce_size    = Size_t.to_int (C.noncebytes ())
+  let zero_size     = Size_t.to_int (C.zerobytes ())
+  let box_zero_size = Size_t.to_int (C.boxzerobytes ())
+
+  (* Invariant: a key is key_size bytes long. *)
+  type 'a key = string
+
+  (* Invariant: a nonce is nonce_size bytes long. *)
+  type nonce = string
+
+  let random_key () =
+    Random.String.generate key_size
+
+  let random_nonce =
+    if nonce_size > 8 then
+      fun () -> Random.String.generate nonce_size
+    else
+      fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
+
+  let nonce_of_string s =
+    if String.length s <> nonce_size then
+      raise (Size_mismatch "Secret_box.nonce_of_string");
+    s
+
+  let increment_nonce = increment_be_string
+
+  let wipe_key = wipe
+
+  let equal_keys = Verify.equal_fn key_size
+
+  module type S = sig
+    type storage
+
+    val of_key          : secret key -> storage
+    val to_key          : storage -> secret key
+
+    val of_nonce        : nonce -> storage
+    val to_nonce        : storage -> nonce
+
+    val secret_box      : secret key -> storage -> nonce -> storage
+    val secret_box_open : secret key -> storage -> nonce -> storage
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let verify_length str len fn_name =
+      if T.length str <> len then raise (Size_mismatch fn_name)
+
+    let of_key key =
+      T.of_string key
+
+    let to_key str =
+      verify_length str key_size "Secret_box.to_key";
+      T.to_string str
+
+    let of_nonce nonce =
+      T.of_string nonce
+
+    let to_nonce str =
+      verify_length str nonce_size "Secret_box.to_nonce";
+      T.to_string str
+
+    let pad a apad bpad f =
+      let a' = T.create (apad + T.length a) in
+      let b' = T.create (T.length a') in
+      T.zero a' 0 apad;
+      T.blit a  0 a' apad (T.length a);
+      f a' b';
+      T.sub b' bpad ((T.length b') - bpad)
+
+    let secret_box key message nonce =
+      pad message zero_size box_zero_size (fun cleartext ciphertext ->
+        let ret = C.secretbox (T.to_ptr ciphertext) (T.to_ptr cleartext)
+                              (T.len_ullong cleartext)
+                              (Storage.String.to_ptr nonce)
+                              (Storage.String.to_ptr key) in
+        assert (ret = 0) (* always returns 0 *))
+
+    let secret_box_open key ciphertext nonce =
+      pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
+        let ret = C.secretbox_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
+                                   (T.len_ullong ciphertext)
+                                   (Storage.String.to_ptr nonce)
+                                   (Storage.String.to_ptr key) in
+        if ret <> 0 then raise Verification_failure)
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
 module Hash = struct
   let primitive = "sha512"
 
   module C = struct
     open Foreign
-    type buffer = uchar Ctypes.ptr
 
     let prefix        = "crypto_hash_"^primitive
 

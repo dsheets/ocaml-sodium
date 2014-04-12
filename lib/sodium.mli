@@ -19,10 +19,10 @@
 (** A binding to {{: https://github.com/jedisct1/libsodium } libsodium}
     which wraps {{: http://nacl.cr.yp.to/ } NaCl} *)
 
-(** Raised when decryption/authentication fails *)
+(** Raised when message authentication fails. *)
 exception Verification_failure
 
-(** Raised when provided key is not valid *)
+(** Raised when attempting to deserialize a malformed key or nonce. *)
 exception Size_mismatch of string
 
 (** Phantom type indicating that the key is public. *)
@@ -114,7 +114,7 @@ module Box : sig
     val of_public_key   : public key -> storage
 
     (** [to_public_key s] converts [s] to a public key.
-        If [s] is not [public_key_size] long, [KeyError] is raised. *)
+        If [s] is not [public_key_size] long, [Size_mismatch] is raised. *)
     val to_public_key   : storage -> public key
 
     (** [of_secret_key k] converts [k] to type [storage]. The result
@@ -122,7 +122,7 @@ module Box : sig
     val of_secret_key   : secret key -> storage
 
     (** [to_secret_key s] converts [s] to a secret key.
-        If [s] is not [secret_key_size] long, [KeyError] is raised. *)
+        If [s] is not [secret_key_size] long, [Size_mismatch] is raised. *)
     val to_secret_key   : storage -> secret key
 
     (** [of_channel_key k] converts [k] to type [storage]. The result
@@ -130,7 +130,7 @@ module Box : sig
     val of_channel_key  : channel key -> storage
 
     (** [to_channel_key s] converts [s] to a channel key.
-        If [s] is not [channel_key_size] long, [KeyError] is raised. *)
+        If [s] is not [channel_key_size] long, [Size_mismatch] is raised. *)
     val to_channel_key  : storage -> channel key
 
     (** [of_nonce n] converts [n] to type [storage]. The result
@@ -138,7 +138,7 @@ module Box : sig
     val of_nonce        : nonce -> storage
 
     (** [to_nonce s] converts [s] to a nonce.
-        If [s] is not [nonce_size] long, [NonceError] is raised. *)
+        If [s] is not [nonce_size] long, [Size_mismatch] is raised. *)
     val to_nonce        : storage -> nonce
 
     (** [box sk pk m n] encrypts and authenticates a message [m] using
@@ -149,7 +149,7 @@ module Box : sig
     (** [box_open sk pk c n] verifies and decrypts a ciphertext [c] using
         the receiver's secret key [sk], the sender's public key [pk], and
         a nonce [n].
-        If authenticity of message cannot be verified, [VerificationError]
+        If authenticity of message cannot be verified, [Verification_failure]
         is raised. *)
     val box_open        : secret key -> public key -> storage -> nonce -> storage
 
@@ -161,7 +161,7 @@ module Box : sig
     (** [fast_box_open ck c n] verifies and decrypts a ciphertext [c] using
         the channel key [ck] precomputed from receiver's secret key
         and the sender's public key, and a nonce [n].
-        If authenticity of message cannot be verified, [VerificationError]
+        If authenticity of message cannot be verified, [Verification_failure]
         is raised. *)
     val fast_box_open   : channel key -> storage -> nonce -> storage
   end
@@ -256,7 +256,7 @@ module Sign : sig
     val of_public_key   : public key -> storage
 
     (** [to_public_key s] converts [s] to a public key.
-        If [s] is not [public_key_size] long, [KeyError] is raised. *)
+        If [s] is not [public_key_size] long, [Size_mismatch] is raised. *)
     val to_public_key   : storage -> public key
 
     (** [of_secret_key k] converts [k] to type [storage]. The result
@@ -264,7 +264,7 @@ module Sign : sig
     val of_secret_key   : secret key -> storage
 
     (** [to_secret_key s] converts [s] to a secret key.
-        If [s] is not [secret_key_size] long, [KeyError] is raised. *)
+        If [s] is not [secret_key_size] long, [Size_mismatch] is raised. *)
     val to_secret_key   : storage -> secret key
 
     (** [sign sk m] signs a message [m] using the signer's secret key [sk],
@@ -273,9 +273,77 @@ module Sign : sig
 
     (** [sign_open pk sm] verifies the signature in [sm] using the signer's
         public key [pk], and returns the message.
-        If authenticity of message cannot be verified, [VerificationError]
+        If authenticity of message cannot be verified, [Verification_failure]
         is raised. *)
     val sign_open       : public key -> storage -> storage
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
+module Secret_box : sig
+  type 'a key
+  type nonce
+
+  (** Primitive used by this implementation. Currently ["xsalsa20poly1305"]. *)
+  val primitive       : string
+
+  (** Size of keys, in bytes. *)
+  val key_size        : int
+
+  (** Size of nonces, in bytes. *)
+  val nonce_size      : int
+
+  (** [random_key ()] generates a random secret key . *)
+  val random_key      : unit -> secret key
+
+  (** [random_nonce ()] generates a random nonce. *)
+  val random_nonce    : unit -> nonce
+
+  (** [nonce_of_string s] creates a nonce out of string [s].
+      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_string : string -> nonce
+
+  (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
+      number and returns the sum of [n] and [step] with wrap-around.
+      The default [step] is 1. *)
+  val increment_nonce : ?step:int -> nonce -> nonce
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key        : secret key -> unit
+
+  (** [equal_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_keys      : secret key -> secret key -> bool
+
+  module type S = sig
+    type storage
+
+    (** [of_key k] converts [k] to type [storage]. The result
+        is [key_size] bytes long. *)
+    val of_key          : secret key -> storage
+
+    (** [to_key s] converts [s] to a secret key.
+        If [s] is not [key_size] long, [Size_mismatch] is raised. *)
+    val to_key          : storage -> secret key
+
+    (** [of_nonce n] converts [n] to type [storage]. The result
+        is [nonce_size] bytes long. *)
+    val of_nonce        : nonce -> storage
+
+    (** [to_nonce s] converts [s] to a nonce.
+        If [s] is not [nonce_size] long, [Size_mismatch] is raised. *)
+    val to_nonce        : storage -> nonce
+
+    (** [secret_box k m n] encrypts and authenticates a message [m] using
+        a secret key [k] and a nonce [n], and returns the resulting ciphertext. *)
+    val secret_box      : secret key -> storage -> nonce -> storage
+
+    (** [secret_box_open k c n] verifies and decrypts a ciphertext [c] using
+        a secret key [k] and a nonce [n], and returns the resulting plaintext [m].
+        If authenticity of message cannot be verified, [Verification_failure]
+        is raised. *)
+    val secret_box_open : secret key -> storage -> nonce -> storage
   end
 
   module String : S with type storage = string

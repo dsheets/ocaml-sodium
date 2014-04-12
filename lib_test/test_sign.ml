@@ -73,14 +73,14 @@ let test_sign_fail_permute ctxt =
   let smsg = Sign.String.sign sk msg in
   smsg.[10] <- 'a';
   assert_raises Verification_failure
-                (fun () -> prerr_endline (Sign.String.sign_open pk smsg))
+                (fun () -> ignore (Sign.String.sign_open pk smsg))
 
 let test_sign_fail_key ctxt =
   let (sk, pk), msg = setup () in
   let (sk',pk') = Sign.random_keypair () in
   let smsg = Sign.String.sign sk msg in
   assert_raises Verification_failure
-                (fun () -> prerr_endline (Sign.String.sign_open pk' smsg))
+                (fun () -> ignore (Sign.String.sign_open pk' smsg))
 
 let suite = "Sign" >::: [
     "test_equal_public_keys"   >:: test_equal_public_keys;
