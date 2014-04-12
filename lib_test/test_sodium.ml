@@ -20,7 +20,8 @@ open OUnit2
 let suite = "Sodium" >::: [
     Test_random.suite;
     Test_box.suite;
-    Test_scalarmult.suite;
+    Test_scalar_mult.suite;
+    Test_sign.suite;
     Test_hash.suite;
   ]
 

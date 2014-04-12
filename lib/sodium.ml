@@ -20,10 +20,8 @@ open Ctypes
 open Unsigned
 open PosixTypes
 
-exception VerificationFailure
-exception KeyError
-exception NonceError
-exception SeedError
+exception Verification_failure
+exception Size_mismatch of string
 
 type public
 type secret
@@ -244,12 +242,6 @@ module Box = struct
 
   let wipe_key = wipe
 
-  let equal_keys =
-    let () =
-      assert (public_key_size = secret_key_size);
-      assert (public_key_size = channel_key_size)
-    in Verify.equal_fn public_key_size
-
   let equal_public_keys = Verify.equal_fn public_key_size
   let equal_secret_keys = Verify.equal_fn secret_key_size
   let equal_channel_keys = Verify.equal_fn channel_key_size
@@ -295,35 +287,35 @@ module Box = struct
   module Make(T: Storage.S) = struct
     type storage = T.t
 
-    let verify_length str len err =
-      if T.length str <> len then raise err
+    let verify_length str len fn_name =
+      if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_public_key key =
       T.of_string key
 
     let to_public_key str =
-      verify_length str public_key_size KeyError;
+      verify_length str public_key_size "Box.to_public_key";
       T.to_string str
 
     let of_secret_key key =
       T.of_string key
 
     let to_secret_key str =
-      verify_length str secret_key_size KeyError;
+      verify_length str secret_key_size "Box.to_secret_key";
       T.to_string str
 
     let of_channel_key key =
       T.of_string key
 
     let to_channel_key str =
-      verify_length str channel_key_size KeyError;
+      verify_length str channel_key_size "Box.to_channel_key";
       T.to_string str
 
     let of_nonce nonce =
       T.of_string nonce
 
     let to_nonce str =
-      verify_length str nonce_size NonceError;
+      verify_length str nonce_size "Box.to_nonce";
       T.to_string str
 
     let pad a apad bpad f =
@@ -348,7 +340,7 @@ module Box = struct
                              (T.len_ullong ciphertext)
                              (Storage.String.to_ptr nonce)
                              (Storage.String.to_ptr pkey) (Storage.String.to_ptr skey) in
-        if ret = -1 then raise VerificationFailure)
+        if ret <> 0 then raise Verification_failure)
 
     let fast_box params message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
@@ -364,7 +356,109 @@ module Box = struct
                                      (T.len_ullong ciphertext)
                                      (Storage.String.to_ptr nonce)
                                      (Storage.String.to_ptr params) in
-        if ret = -1 then raise VerificationFailure)
+        if ret <> 0 then raise Verification_failure)
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
+module Sign = struct
+  let primitive = "ed25519"
+
+  module C = struct
+    open Foreign
+    type buffer = uchar Ctypes.ptr
+    type box    = buffer -> buffer -> ullong -> buffer -> buffer -> buffer -> int
+
+    let prefix = "crypto_sign_"^primitive
+
+    let sz_query_type   = void @-> returning size_t
+    let publickeybytes  = foreign (prefix^"_publickeybytes") sz_query_type
+    let secretkeybytes  = foreign (prefix^"_secretkeybytes") sz_query_type
+    let bytes           = foreign (prefix^"_bytes")          sz_query_type
+
+    let sign_keypair    = foreign (prefix^"_keypair")
+                                  (ptr uchar @-> ptr uchar @-> returning int)
+
+    let sign_fn_type    = (ptr uchar @-> ptr ullong @-> ptr uchar
+                           @-> ullong @-> ptr uchar @-> returning int)
+
+    let sign            = foreign (prefix) sign_fn_type
+    let sign_open       = foreign (prefix^"_open") sign_fn_type
+  end
+
+  let public_key_size  = Size_t.to_int (C.publickeybytes ())
+  let secret_key_size  = Size_t.to_int (C.secretkeybytes ())
+  let reserved_size    = Size_t.to_int (C.bytes ())
+
+  (* Invariant: a key is {public,secret}_key_size bytes long. *)
+  type 'a key = string
+  type keypair = secret key * public key
+
+  let random_keypair () =
+    let pk, sk = String.create public_key_size,
+                 String.create secret_key_size in
+    let ret = C.sign_keypair (Storage.String.to_ptr pk) (Storage.String.to_ptr sk) in
+    assert (ret = 0); (* always returns 0 *)
+    sk, pk
+
+  let wipe_key = wipe
+
+  let equal_public_keys = Verify.equal_fn public_key_size
+  let equal_secret_keys = Verify.equal_fn secret_key_size
+  let compare_public_keys = String.compare
+
+  module type S = sig
+    type storage
+
+    val of_public_key   : public key -> storage
+    val to_public_key   : storage -> public key
+
+    val of_secret_key   : secret key -> storage
+    val to_secret_key   : storage -> secret key
+
+    val sign            : secret key -> storage -> storage
+    val sign_open       : public key -> storage -> storage
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let verify_length str len fn_name =
+      if T.length str <> len then raise (Size_mismatch fn_name)
+
+    let of_public_key key =
+      T.of_string key
+
+    let to_public_key str =
+      verify_length str public_key_size "Sign.to_public_key";
+      T.to_string str
+
+    let of_secret_key key =
+      T.of_string key
+
+    let to_secret_key str =
+      verify_length str secret_key_size "Sign.to_secret_key";
+      T.to_string str
+
+    let sign skey message =
+      let signed_msg = T.create ((T.length message) + reserved_size) in
+      let signed_len = allocate ullong (Unsigned.ULLong.of_int 0) in
+      let ret = C.sign (T.to_ptr signed_msg) signed_len
+                       (T.to_ptr message) (T.len_ullong message)
+                       (Storage.String.to_ptr skey) in
+      assert (ret = 0); (* always returns 0 *)
+      T.sub signed_msg 0 (Unsigned.ULLong.to_int (!@ signed_len))
+
+    let sign_open pkey signed_msg =
+      let message = T.create (T.length signed_msg) in
+      let msg_len = allocate ullong (Unsigned.ULLong.of_int 0) in
+      let ret = C.sign_open (T.to_ptr message) msg_len
+                            (T.to_ptr signed_msg) (T.len_ullong signed_msg)
+                            (Storage.String.to_ptr pkey) in
+      if ret <> 0 then raise Verification_failure;
+      T.sub message 0 (Unsigned.ULLong.to_int (!@ msg_len))
   end
 
   module String = Make(Storage.String)
@@ -433,7 +527,7 @@ module Scalar_mult = struct
 
     let to_group_elt str =
       if T.length str <> group_elt_size then
-        invalid_arg "Sodium.Scalar_mult.to_group_elt"; (* TODO: proper exn? *)
+        raise (Size_mismatch "Scalar_mult.to_group_elt");
       T.to_string str
 
     let of_integer str =
@@ -441,7 +535,7 @@ module Scalar_mult = struct
 
     let to_integer str =
       if T.length str <> integer_size then
-        invalid_arg "Sodium.Scalar_mult.to_integer"; (* TODO: proper exn? *)
+        raise (Size_mismatch "Scalar_mult.to_integer");
       T.to_string str
   end
 
@@ -489,7 +583,7 @@ module Hash = struct
 
     let to_hash str =
       if T.length str <> size then
-        invalid_arg "Sodium.Hash.to_hash"; (* TODO: proper exn? *)
+        raise (Size_mismatch "Hash.to_hash");
       T.to_string str
 
     let digest str =

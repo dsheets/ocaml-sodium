@@ -20,16 +20,19 @@
     which wraps {{: http://nacl.cr.yp.to/ } NaCl} *)
 
 (** Raised when decryption/authentication fails *)
-exception VerificationFailure
-(** Raised when provided key is not valid *)
-exception KeyError
-(** Raised when provided nonce is not valid *)
-exception NonceError
-(** Raised when provided seed is not valid *)
-exception SeedError
+exception Verification_failure
 
+(** Raised when provided key is not valid *)
+exception Size_mismatch of string
+
+(** Phantom type indicating that the key is public. *)
 type public
+
+(** Phantom type indicating that the key is secret. *)
 type secret
+
+(** Phantom type indicating that the key is composed of a secret key and
+    a public key. Such a key must be treated as a secret key. *)
 type channel
 
 type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -54,19 +57,19 @@ module Box : sig
   type nonce
 
   (** Primitive used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
-  val primitive         : string
+  val primitive           : string
 
   (** Size of public keys, in bytes. *)
-  val public_key_size   : int
+  val public_key_size     : int
 
   (** Size of secret keys, in bytes. *)
-  val secret_key_size   : int
+  val secret_key_size     : int
 
   (** Size of channel keys, in bytes. *)
-  val channel_key_size  : int
+  val channel_key_size    : int
 
   (** Size of nonces, in bytes. *)
-  val nonce_size        : int
+  val nonce_size          : int
 
   (** [random_keypair ()] generates a random key pair. *)
   val random_keypair      : unit -> keypair
@@ -107,7 +110,7 @@ module Box : sig
     type storage
 
     (** [of_public_key k] converts [k] to type [storage]. The result
-        is [sizes.public_key] bytes long. *)
+        is [public_key_size] bytes long. *)
     val of_public_key   : public key -> storage
 
     (** [to_public_key s] converts [s] to a public key.
@@ -211,6 +214,68 @@ module Scalar_mult : sig
     (** [to_integer s] converts [s] to a integer.
         If [s] is not [integer_size] long, [Invalid_argument] is raised. *)
     val to_integer    : storage -> integer
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
+module Sign : sig
+  type 'a key
+  type keypair = secret key * public key
+
+  (** Primitive used by this implementation. Currently ["ed25519"]. *)
+  val primitive           : string
+
+  (** Size of public keys, in bytes. *)
+  val public_key_size     : int
+
+  (** Size of secret keys, in bytes. *)
+  val secret_key_size     : int
+
+  (** [random_keypair ()] generates a random key pair. *)
+  val random_keypair      : unit -> keypair
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key            : 'a key -> unit
+
+  (** [equal_public_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_public_keys   : public key -> public key -> bool
+
+  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_secret_keys   : secret key -> secret key -> bool
+
+  (** [compare_public_keys a b] compares [a] and [b]. *)
+  val compare_public_keys : public key -> public key -> int
+
+  module type S = sig
+    type storage
+
+    (** [of_public_key k] converts [k] to type [storage]. The result
+        is [public_key_size] bytes long. *)
+    val of_public_key   : public key -> storage
+
+    (** [to_public_key s] converts [s] to a public key.
+        If [s] is not [public_key_size] long, [KeyError] is raised. *)
+    val to_public_key   : storage -> public key
+
+    (** [of_secret_key k] converts [k] to type [storage]. The result
+        is [secret_key_size] bytes long. *)
+    val of_secret_key   : secret key -> storage
+
+    (** [to_secret_key s] converts [s] to a secret key.
+        If [s] is not [secret_key_size] long, [KeyError] is raised. *)
+    val to_secret_key   : storage -> secret key
+
+    (** [sign sk m] signs a message [m] using the signer's secret key [sk],
+        and returns the resulting signed message. *)
+    val sign            : secret key -> storage -> storage
+
+    (** [sign_open pk sm] verifies the signature in [sm] using the signer's
+        public key [pk], and returns the message.
+        If authenticity of message cannot be verified, [VerificationError]
+        is raised. *)
+    val sign_open       : public key -> storage -> storage
   end
 
   module String : S with type storage = string

@@ -45,7 +45,7 @@ let test_equal ctxt =
 
 let test_permute ctxt =
   let hash  = Hash.String.digest "The quick brown fox jumps over the lazy dog"  in
-  assert_raises (Invalid_argument "Sodium.Hash.to_hash")
+  assert_raises (Size_mismatch "Hash.to_hash")
                 (fun () -> (Hash.String.to_hash ((Hash.String.of_hash hash) ^ "\x00")))
 
 let suite = "Hash" >::: [

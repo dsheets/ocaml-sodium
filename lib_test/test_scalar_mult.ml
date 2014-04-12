@@ -63,9 +63,9 @@ let test_scalarmult ctxt =
   ()
 
 let test_permute ctxt =
-  assert_raises (Invalid_argument "Sodium.Scalar_mult.to_integer")
+  assert_raises (Size_mismatch "Scalar_mult.to_integer")
                 (fun () -> Scalar_mult.String.to_integer "\x03");
-  assert_raises (Invalid_argument "Sodium.Scalar_mult.to_group_elt")
+  assert_raises (Size_mismatch "Scalar_mult.to_group_elt")
                 (fun () -> Scalar_mult.String.to_group_elt "\x03")
 
 let test_equal ctxt =
