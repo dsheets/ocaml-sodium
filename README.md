@@ -2,19 +2,19 @@
 
 [Ctypes](https://github.com/ocamllabs/ocaml-ctypes) bindings to
 [libsodium 0.4.3+](https://github.com/jedisct1/libsodium) which wraps
-[NaCl](http://nacl.cr.yp.to/). [`crypto_box`](http://nacl.cr.yp.to/box.html)
-and [`crypto_sign`](http://nacl.cr.yp.to/sign.html)
-functions only right now.
+[NaCl](http://nacl.cr.yp.to/).
+
+All original NaCl primitives are wrapped. `crypto_shorthash` and
+`crypto_generichash` are so far missing.
 
 ``` ocaml
-module Crypto = Sodium.Make(Sodium.Serialize.String)
-;;
-let nonce = Crypto.box_read_nonce (Crypto.random Sodium.Box.(bytes.nonce)) in
-let (pk, sk ) = Crypto.box_keypair () in
-let (pk',sk') = Crypto.box_keypair () in
-let c = Crypto.box sk pk' "Hello, Spooky World!" ~nonce in
-let m = Crypto.box_open sk' pk c ~nonce in
-print_endline (String.escaped (Crypto.box_write_ciphertext c));
+open Sodium
+let nonce = Box.random_nonce () in
+let (sk, pk ) = Box.random_keypair () in
+let (sk',pk') = Box.random_keypair () in
+let c = Box.String.box sk pk' "Hello, Spooky World!" nonce in
+let m = Box.String.box_open sk' pk c nonce in
+print_endline (String.escaped c);
 print_endline m
 ```
 
@@ -27,9 +27,6 @@ interface.
 
 **This binding has not been thoroughly and independently audited so your
 use case must be able to tolerate this uncertainty.**
-
-*ocaml-sodium* contains functors over serializations both for individual
- *NaCl* modules, e.g. `Sodium.Box.Make`, and as the `Sodium.Make` bundle.
 
 Despite ocaml-sodium's thin interface on top of *libsodium*, it is still
 important to be mindful of security invariants. In particular, you
