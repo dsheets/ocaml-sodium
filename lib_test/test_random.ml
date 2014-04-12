@@ -39,7 +39,7 @@ let test_generate_into ctxt =
   Sodium.Random.Bigstring.generate_into arr';
   assert_bool "changes contents" (arr <> arr')
 
-let suite = "Test Random" >::: [
+let suite = "Random" >::: [
     "test_stir"          >:: test_stir;
     "test_generate"      >:: test_generate;
     "test_generate_into" >:: test_generate_into;

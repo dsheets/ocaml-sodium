@@ -756,6 +756,111 @@ module Stream = struct
   module Bigstring = Make(Storage.Bigstring)
 end
 
+module Gen_auth(M: sig
+  val scope     : string
+  val primitive : string
+  val name      : string
+end) = struct
+  let primitive = M.primitive
+
+  module C = struct
+    open Foreign
+
+    let prefix = "crypto_"^M.scope^"_"^primitive
+
+    let sz_query_type = void @-> returning size_t
+    let keybytes      = foreign (prefix^"_keybytes") sz_query_type
+    let bytes         = foreign (prefix^"_bytes")    sz_query_type
+
+    let auth_fn_type  = (ptr uchar @-> ptr uchar @-> ullong
+                         @-> ptr uchar @-> returning int)
+
+    let auth          = foreign (prefix)           auth_fn_type
+    let auth_verify   = foreign (prefix^"_verify") auth_fn_type
+  end
+
+  let key_size  = Size_t.to_int (C.keybytes ())
+  let auth_size = Size_t.to_int (C.bytes ())
+
+  (* Invariant: a key is key_size bytes long. *)
+  type 'a key = string
+
+  (* Invariant: an auth is auth_size bytes long. *)
+  type auth = string
+
+  let random_key () =
+    Random.String.generate key_size
+
+  let wipe_key = wipe
+
+  let equal_keys = Verify.equal_fn key_size
+
+  module type S = sig
+    type storage
+
+    val of_key  : secret key -> storage
+    val to_key  : storage -> secret key
+
+    val of_auth : auth -> storage
+    val to_auth : storage -> auth
+
+    val auth    : secret key -> storage -> auth
+    val verify  : secret key -> auth -> storage -> unit
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let verify_length str len fn_name =
+      if T.length str <> len then raise (Size_mismatch fn_name)
+
+    let of_key key =
+      T.of_string key
+
+    let to_key =
+      let fn_name = M.name^".to_key" in fun str ->
+      verify_length str key_size fn_name;
+      T.to_string str
+
+    let of_auth auth =
+      T.of_string auth
+
+    let to_auth =
+      let fn_name = M.name^".to_auth" in fun str ->
+      verify_length str auth_size fn_name;
+      T.to_string str
+
+    let auth key message =
+      let auth = Storage.String.create auth_size in
+      let ret = C.auth (Storage.String.to_ptr auth)
+                       (T.to_ptr message) (T.len_ullong message)
+                       (Storage.String.to_ptr key) in
+      assert (ret = 0); (* always returns 0 *)
+      auth
+
+    let verify key auth message =
+      let ret = C.auth_verify (Storage.String.to_ptr auth)
+                              (T.to_ptr message) (T.len_ullong message)
+                              (Storage.String.to_ptr key) in
+      if ret <> 0 then raise Verification_failure
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
+module Auth = Gen_auth(struct
+  let scope     = "auth"
+  let primitive = "hmacsha512256"
+  let name      = "Auth"
+end)
+
+module One_time_auth = Gen_auth(struct
+  let scope     = "onetimeauth"
+  let primitive = "poly1305"
+  let name      = "One_time_auth"
+end)
+
 module Hash = struct
   let primitive = "sha512"
 

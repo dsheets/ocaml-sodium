@@ -416,6 +416,68 @@ module Stream : sig
   module Bigstring : S with type storage = bigstring
 end
 
+module Auth : sig
+  type 'a key
+  type auth
+
+  (** Primitive used by this implementation. Currently ["hmacsha512256"]. *)
+  val primitive   : string
+
+  (** Size of keys, in bytes. *)
+  val key_size    : int
+
+  (** Size of authenticators, in bytes. *)
+  val auth_size   : int
+
+  (** [random_key ()] generates a random secret key . *)
+  val random_key  : unit -> secret key
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key    : secret key -> unit
+
+  (** [equal_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_keys  : secret key -> secret key -> bool
+
+  module type S = sig
+    type storage
+
+    (** [of_key k] converts [k] to type [storage]. The result
+        is [key_size] bytes long. *)
+    val of_key  : secret key -> storage
+
+    (** [to_key s] converts [s] to a secret key.
+        If [s] is not [key_size] long, [Size_mismatch] is raised. *)
+    val to_key  : storage -> secret key
+
+    (** [of_auth a] converts [a] to type [storage]. The result
+        is [auth_size] bytes long. *)
+    val of_auth : auth -> storage
+
+    (** [to_auth s] converts [s] to an authenticator.
+        If [s] is not [auth_size] long, [Size_mismatch] is raised. *)
+    val to_auth : storage -> auth
+
+    (** [auth k m] authenticates a message [m] using a secret key [k],
+        and returns an authenticator [a].  *)
+    val auth    : secret key -> storage -> auth
+
+    (** [verify k a m] checks that [a] is a correct authenticator
+        of a message [m] under the secret key [k]. If it is not,
+        [Verification_failed] is raised. *)
+    val verify  : secret key -> auth -> storage -> unit
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
+module One_time_auth : sig
+  include module type of Auth
+
+  (** Primitive used by this implementation. Currently ["poly1305"]. *)
+  val primitive   : string
+end
+
 module Hash : sig
   type hash
 
