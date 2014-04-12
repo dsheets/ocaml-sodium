@@ -32,6 +32,9 @@ type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.
 module Storage = struct
   module type S = sig
     type t
+    type ctype
+
+    val ctype      : ctype typ
 
     val create     : int -> t
     val zero       : t -> int -> int -> unit
@@ -40,23 +43,24 @@ module Storage = struct
     val length     : t -> int
     val len_size_t : t -> size_t
     val len_ullong : t -> ullong
-    val to_ptr     : t -> uchar ptr
+    val to_ptr     : t -> ctype
     val to_string  : t -> string
     val of_string  : string -> t
   end
 
-  let coerce_char_uchar = coerce (ptr char) (ptr uchar)
-
-  module Bigstring : S with type t = bigstring = struct
-    open Bigarray
-
+  module Bigstring : S with type t = bigstring and type ctype = char ptr = struct
     type t = bigstring
+    type ctype = char ptr
+
+    let ctype = ptr char
+
+    open Bigarray
 
     let create     len = (Array1.create char c_layout len)
     let length     str = Array1.dim str
     let len_size_t str = Unsigned.Size_t.of_int (Array1.dim str)
     let len_ullong str = Unsigned.ULLong.of_int (Array1.dim str)
-    let to_ptr     str = coerce_char_uchar (bigarray_start array1 str)
+    let to_ptr     str = bigarray_start array1 str
     let zero       str pos len = (Array1.fill (Array1.sub str pos len) '\x00')
 
     let to_string  str =
@@ -76,14 +80,17 @@ module Storage = struct
                   (Array1.sub dst dstoff len)
   end
 
-  module String : S with type t = string = struct
+  module String : S with type t = string and type ctype = string ocaml = struct
     type t = string
+    type ctype = string ocaml
+
+    let ctype = ocaml_string
 
     let create     len = String.create len
     let length     str = String.length str
     let len_size_t str = Unsigned.Size_t.of_int (String.length str)
     let len_ullong str = Unsigned.ULLong.of_int (String.length str)
-    let to_ptr     str = coerce_char_uchar (string_start str)
+    let to_ptr     str = ocaml_string_start str
     let zero       str pos len = String.fill str pos len '\x00'
     let to_string  str = str
     let of_string  str = str
@@ -98,12 +105,12 @@ module C = struct
   let prefix = "sodium"
 
   let init    = foreign (prefix^"_init")    (void @-> returning void)
-  let memzero = foreign (prefix^"_memzero") (ptr void @-> size_t @-> returning void)
-  let memcmp  = foreign (prefix^"_memcmp")  (ptr void @-> ptr void @-> size_t @-> returning void)
+  let memzero = foreign (prefix^"_memzero") (ocaml_string @-> size_t @-> returning void)
+  let memcmp  = foreign (prefix^"_memcmp")  (ocaml_string @-> ocaml_string @-> size_t @-> returning void)
 end
 
 let wipe str =
-  C.memzero (to_voidp (Storage.String.to_ptr str)) (Storage.String.len_size_t str)
+  C.memzero (Storage.String.to_ptr str) (Storage.String.len_size_t str)
 
 let increment_be_string ?(step=1) s =
   let s = String.copy s in
@@ -121,13 +128,11 @@ module Verify = struct
   module C = struct
     open Foreign
 
-    let prefix      = "crypto_verify"
-
-    let verify_type = ptr uchar @-> ptr uchar @-> returning int
-    let verify_16   = foreign (prefix^"_16") verify_type
-    let verify_32   = foreign (prefix^"_32") verify_type
+    let verify_type = ocaml_string @-> ocaml_string @-> returning int
+    let verify_16   = foreign "crypto_verify_16" verify_type
+    let verify_32   = foreign "crypto_verify_32" verify_type
     (* TODO need newer libsodium *)
-    (* let verify_64   = foreign (prefix^"_64") verify_type *)
+    (* let verify_64   = foreign "crypto_verify_64" verify_type *)
   end
 
   let equal_fn size =
@@ -150,8 +155,11 @@ module Random = struct
   module C = struct
     open Foreign
     let stir = foreign "randombytes_stir" (void @-> returning void)
-    let gen  = foreign "randombytes_buf"
-      (ptr uchar @-> size_t @-> returning void)
+  end
+
+  module MakeC(T: Storage.S) = struct
+    open Foreign
+    let gen  = foreign "randombytes_buf"  (T.ctype @-> size_t @-> returning void)
   end
 
   let stir = C.stir
@@ -163,6 +171,7 @@ module Random = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let generate_into str =
@@ -180,11 +189,10 @@ end
 
 module Box = struct
   let primitive = "curve25519xsalsa20poly1305"
+  let prefix    = "crypto_box_"^primitive
 
   module C = struct
     open Foreign
-
-    let prefix = "crypto_box_"^primitive
 
     let sz_query_type    = void @-> returning size_t
     let publickeybytes   = foreign (prefix^"_publickeybytes") sz_query_type
@@ -195,20 +203,25 @@ module Box = struct
     let boxzerobytes     = foreign (prefix^"_boxzerobytes")   sz_query_type
 
     let box_keypair      = foreign (prefix^"_keypair")
-                                   (ptr uchar @-> ptr uchar @-> returning int)
+                                   (ocaml_string @-> ocaml_string @-> returning int)
 
-    let box_fn_type      = (ptr uchar @-> ptr uchar @-> ullong
-                            @-> ptr uchar @-> ptr uchar @-> ptr uchar
+    let box_beforenm     = foreign (prefix^"_beforenm")
+                                   (ocaml_string @-> ocaml_string @-> ocaml_string
+                                    @-> returning int)
+  end
+
+  module MakeC(T: Storage.S) = struct
+    open Foreign
+
+    let box_fn_type      = (T.ctype @-> T.ctype @-> ullong
+                            @-> ocaml_string @-> ocaml_string @-> ocaml_string
                             @-> returning int)
 
     let box              = foreign (prefix) box_fn_type
     let box_open         = foreign (prefix^"_open") box_fn_type
 
-    let box_beforenm     = foreign (prefix^"_beforenm")
-                                   (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
-
-    let box_afternm_type = (ptr uchar @-> ptr uchar @-> ullong
-                            @-> ptr uchar @-> ptr uchar @-> returning int)
+    let box_afternm_type = (T.ctype @-> T.ctype @-> ullong
+                            @-> ocaml_string @-> ocaml_string @-> returning int)
 
     let box_afternm      = foreign (prefix^"_afternm") box_afternm_type
     let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
@@ -283,6 +296,7 @@ module Box = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -363,11 +377,10 @@ end
 
 module Sign = struct
   let primitive = "ed25519"
+  let prefix    = "crypto_sign_"^primitive
 
   module C = struct
     open Foreign
-
-    let prefix = "crypto_sign_"^primitive
 
     let sz_query_type   = void @-> returning size_t
     let publickeybytes  = foreign (prefix^"_publickeybytes") sz_query_type
@@ -375,10 +388,14 @@ module Sign = struct
     let bytes           = foreign (prefix^"_bytes")          sz_query_type
 
     let sign_keypair    = foreign (prefix^"_keypair")
-                                  (ptr uchar @-> ptr uchar @-> returning int)
+                                  (ocaml_string @-> ocaml_string @-> returning int)
+  end
 
-    let sign_fn_type    = (ptr uchar @-> ptr ullong @-> ptr uchar
-                           @-> ullong @-> ptr uchar @-> returning int)
+  module MakeC(T: Storage.S) = struct
+    open Foreign
+
+    let sign_fn_type    = (T.ctype @-> ptr ullong @-> T.ctype
+                           @-> ullong @-> ocaml_string @-> returning int)
 
     let sign            = foreign (prefix) sign_fn_type
     let sign_open       = foreign (prefix^"_open") sign_fn_type
@@ -419,6 +436,7 @@ module Sign = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -463,20 +481,20 @@ end
 
 module Scalar_mult = struct
   let primitive = "curve25519"
+  let prefix    = "crypto_scalarmult_"^primitive
 
   module C = struct
     open Foreign
-
-    let prefix          = "crypto_scalarmult_"^primitive
 
     let sz_query_type   = void @-> returning size_t
     let bytes           = foreign (prefix^"_bytes") sz_query_type
     let scalarbytes     = foreign (prefix^"_scalarbytes") sz_query_type
 
     let scalarmult      = foreign (prefix)
-                                  (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
+                                  (ocaml_string @-> ocaml_string @-> ocaml_string
+                                   @-> returning int)
     let scalarmult_base = foreign (prefix^"_base")
-                                  (ptr uchar @-> ptr uchar @-> returning int)
+                                  (ocaml_string @-> ocaml_string @-> returning int)
   end
 
   let group_elt_size = Size_t.to_int (C.bytes ())
@@ -540,20 +558,23 @@ end
 
 module Secret_box = struct
   let primitive = "xsalsa20poly1305"
+  let prefix    = "crypto_secretbox_"^primitive
 
   module C = struct
     open Foreign
-
-    let prefix = "crypto_secretbox_"^primitive
 
     let sz_query_type   = void @-> returning size_t
     let keybytes        = foreign (prefix^"_keybytes")     sz_query_type
     let noncebytes      = foreign (prefix^"_noncebytes")   sz_query_type
     let zerobytes       = foreign (prefix^"_zerobytes")    sz_query_type
     let boxzerobytes    = foreign (prefix^"_boxzerobytes") sz_query_type
+  end
 
-    let secretbox_fn_ty = (ptr uchar @-> ptr uchar @-> ullong
-                           @-> ptr uchar @-> ptr uchar @-> returning int)
+  module MakeC(T: Storage.S) = struct
+    open Foreign
+
+    let secretbox_fn_ty = (T.ctype @-> T.ctype @-> ullong
+                           @-> ocaml_string @-> ocaml_string @-> returning int)
 
     let secretbox       = foreign (prefix)         secretbox_fn_ty
     let secretbox_open  = foreign (prefix^"_open") secretbox_fn_ty
@@ -604,6 +625,7 @@ module Secret_box = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -654,22 +676,25 @@ end
 
 module Stream = struct
   let primitive = "xsalsa20"
+  let prefix    = "crypto_stream_"^primitive
 
   module C = struct
     open Foreign
 
-    let prefix = "crypto_stream_"^primitive
-
     let sz_query_type   = void @-> returning size_t
     let keybytes        = foreign (prefix^"_keybytes")     sz_query_type
     let noncebytes      = foreign (prefix^"_noncebytes")   sz_query_type
+  end
+
+  module MakeC(T: Storage.S) = struct
+    open Foreign
 
     let stream          = foreign (prefix)
-                                  (ptr uchar @-> ullong @-> ptr uchar
-                                   @-> ptr uchar @-> returning int)
+                                  (T.ctype @-> ullong @-> ocaml_string
+                                   @-> ocaml_string @-> returning int)
     let stream_xor      = foreign (prefix^"_xor")
-                                  (ptr uchar @-> ptr uchar @-> ullong
-                                   @-> ptr uchar @-> ptr uchar @-> returning int)
+                                  (T.ctype @-> T.ctype @-> ullong
+                                   @-> ocaml_string @-> ocaml_string @-> returning int)
   end
 
   let key_size      = Size_t.to_int (C.keybytes ())
@@ -715,6 +740,7 @@ module Stream = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -762,18 +788,21 @@ module Gen_auth(M: sig
   val name      : string
 end) = struct
   let primitive = M.primitive
+  let prefix    = "crypto_"^M.scope^"_"^primitive
 
   module C = struct
     open Foreign
 
-    let prefix = "crypto_"^M.scope^"_"^primitive
-
     let sz_query_type = void @-> returning size_t
     let keybytes      = foreign (prefix^"_keybytes") sz_query_type
     let bytes         = foreign (prefix^"_bytes")    sz_query_type
+  end
 
-    let auth_fn_type  = (ptr uchar @-> ptr uchar @-> ullong
-                         @-> ptr uchar @-> returning int)
+  module MakeC(T: Storage.S) = struct
+    open Foreign
+
+    let auth_fn_type  = (ocaml_string @-> T.ctype @-> ullong
+                         @-> ocaml_string @-> returning int)
 
     let auth          = foreign (prefix)           auth_fn_type
     let auth_verify   = foreign (prefix^"_verify") auth_fn_type
@@ -809,6 +838,7 @@ end) = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -863,17 +893,20 @@ end)
 
 module Hash = struct
   let primitive = "sha512"
+  let prefix    = "crypto_hash_"^primitive
 
   module C = struct
     open Foreign
 
-    let prefix        = "crypto_hash_"^primitive
-
     let sz_query_type = void @-> returning size_t
     let hashbytes     = foreign (prefix^"_bytes") sz_query_type
+  end
+
+  module MakeC(T: Storage.S) = struct
+    open Foreign
 
     let hash          = foreign (prefix)
-                                (ptr uchar @-> ptr uchar @-> ullong @-> returning int)
+                                (ocaml_string @-> T.ctype @-> ullong @-> returning int)
   end
 
   let size = Size_t.to_int (C.hashbytes ())
@@ -893,6 +926,7 @@ module Hash = struct
   end
 
   module Make(T: Storage.S) = struct
+    module C = MakeC(T)
     type storage = T.t
 
     let of_hash str =
