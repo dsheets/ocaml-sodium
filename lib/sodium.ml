@@ -652,6 +652,110 @@ module Secret_box = struct
   module Bigstring = Make(Storage.Bigstring)
 end
 
+module Stream = struct
+  let primitive = "xsalsa20"
+
+  module C = struct
+    open Foreign
+
+    let prefix = "crypto_stream_"^primitive
+
+    let sz_query_type   = void @-> returning size_t
+    let keybytes        = foreign (prefix^"_keybytes")     sz_query_type
+    let noncebytes      = foreign (prefix^"_noncebytes")   sz_query_type
+
+    let stream          = foreign (prefix)
+                                  (ptr uchar @-> ullong @-> ptr uchar
+                                   @-> ptr uchar @-> returning int)
+    let stream_xor      = foreign (prefix^"_xor")
+                                  (ptr uchar @-> ptr uchar @-> ullong
+                                   @-> ptr uchar @-> ptr uchar @-> returning int)
+  end
+
+  let key_size      = Size_t.to_int (C.keybytes ())
+  let nonce_size    = Size_t.to_int (C.noncebytes ())
+
+  (* Invariant: a key is key_size bytes long. *)
+  type 'a key = string
+
+  (* Invariant: a nonce is nonce_size bytes long. *)
+  type nonce = string
+
+  let random_key () =
+    Random.String.generate key_size
+
+  let random_nonce =
+    if nonce_size > 8 then
+      fun () -> Random.String.generate nonce_size
+    else
+      fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
+
+  let nonce_of_string s =
+    if String.length s <> nonce_size then
+      raise (Size_mismatch "Stream.nonce_of_string");
+    s
+
+  let increment_nonce = increment_be_string
+
+  let wipe_key = wipe
+
+  let equal_keys = Verify.equal_fn key_size
+
+  module type S = sig
+    type storage
+
+    val of_key     : secret key -> storage
+    val to_key     : storage -> secret key
+
+    val of_nonce   : nonce -> storage
+    val to_nonce   : storage -> nonce
+
+    val stream     : secret key -> int -> nonce -> storage
+    val stream_xor : secret key -> storage -> nonce -> storage
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let verify_length str len fn_name =
+      if T.length str <> len then raise (Size_mismatch fn_name)
+
+    let of_key key =
+      T.of_string key
+
+    let to_key str =
+      verify_length str key_size "Stream.to_key";
+      T.to_string str
+
+    let of_nonce nonce =
+      T.of_string nonce
+
+    let to_nonce str =
+      verify_length str nonce_size "Stream.to_nonce";
+      T.to_string str
+
+    let stream key len nonce =
+      let stream = T.create len in
+      let ret = C.stream (T.to_ptr stream) (T.len_ullong stream)
+                         (Storage.String.to_ptr nonce)
+                         (Storage.String.to_ptr key) in
+      assert (ret = 0); (* always returns 0 *)
+      stream
+
+    let stream_xor key message nonce =
+      let ciphertext = T.create (T.length message) in
+      let ret = C.stream_xor (T.to_ptr ciphertext)
+                             (T.to_ptr message) (T.len_ullong message)
+                             (Storage.String.to_ptr nonce)
+                             (Storage.String.to_ptr key) in
+      assert (ret = 0); (* always returns 0 *)
+      ciphertext
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
 module Hash = struct
   let primitive = "sha512"
 

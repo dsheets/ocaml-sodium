@@ -23,6 +23,7 @@ let suite = "Sodium" >::: [
     Test_scalar_mult.suite;
     Test_sign.suite;
     Test_secret_box.suite;
+    Test_stream.suite;
     Test_hash.suite;
   ]
 

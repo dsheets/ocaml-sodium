@@ -350,6 +350,72 @@ module Secret_box : sig
   module Bigstring : S with type storage = bigstring
 end
 
+module Stream : sig
+  type 'a key
+  type nonce
+
+  (** Primitive used by this implementation. Currently ["xsalsa20"]. *)
+  val primitive       : string
+
+  (** Size of keys, in bytes. *)
+  val key_size        : int
+
+  (** Size of nonces, in bytes. *)
+  val nonce_size      : int
+
+  (** [random_key ()] generates a random secret key . *)
+  val random_key      : unit -> secret key
+
+  (** [random_nonce ()] generates a random nonce. *)
+  val random_nonce    : unit -> nonce
+
+  (** [nonce_of_string s] creates a nonce out of string [s].
+      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_string : string -> nonce
+
+  (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
+      number and returns the sum of [n] and [step] with wrap-around.
+      The default [step] is 1. *)
+  val increment_nonce : ?step:int -> nonce -> nonce
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key        : secret key -> unit
+
+  (** [equal_keys a b] checks [a] and [b] for equality in constant time. *)
+  val equal_keys      : secret key -> secret key -> bool
+
+  module type S = sig
+    type storage
+
+    (** [of_key k] converts [k] to type [storage]. The result
+        is [key_size] bytes long. *)
+    val of_key          : secret key -> storage
+
+    (** [to_key s] converts [s] to a secret key.
+        If [s] is not [key_size] long, [Size_mismatch] is raised. *)
+    val to_key          : storage -> secret key
+
+    (** [of_nonce n] converts [n] to type [storage]. The result
+        is [nonce_size] bytes long. *)
+    val of_nonce        : nonce -> storage
+
+    (** [to_nonce s] converts [s] to a nonce.
+        If [s] is not [nonce_size] long, [Size_mismatch] is raised. *)
+    val to_nonce        : storage -> nonce
+
+    (** [stream k len n] produces a [len]-byte stream [c] as a function of
+        a secret key [k] and a nonce [n]. *)
+    val stream          : secret key -> int -> nonce -> storage
+
+    (** [stream_xor k m n] encrypts or decrypts a message [m] using
+        a secret key [k] and a nonce [n]. *)
+    val stream_xor      : secret key -> storage -> nonce -> storage
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
 module Hash : sig
   type hash
 
