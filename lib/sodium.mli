@@ -167,6 +167,50 @@ module Box : sig
   module Bigstring : S with type storage = bigstring
 end
 
+module Scalar_mult : sig
+  type group_elt
+  type integer
+
+  (** Primitive used by this implementation. Currently ["curve25519"]. *)
+  val primitive       : string
+
+  (** Size of group elements, in bytes. *)
+  val group_elt_size  : int
+
+  (** Size of integers, in bytes. *)
+  val integer_size    : int
+
+  (** [mult n p] multiplies a group element [p] by an integer [n]. *)
+  val mult            : integer -> group_elt -> group_elt
+
+  (** [base n] computes the scalar product of a standard group
+      element and an integer [n]. *)
+  val base            : integer -> group_elt
+
+  module type S = sig
+    type storage
+
+    (** [of_group_elt ge] converts [ge] to type [storage]. The result
+        is [group_elt_size] bytes long. *)
+    val of_group_elt  : group_elt -> storage
+
+    (** [to_group_elt s] converts [s] to a group_elt.
+        If [s] is not [group_elt_size] long, [Invalid_argument] is raised. *)
+    val to_group_elt  : storage -> group_elt
+
+    (** [of_integer i] converts [i] to type [storage]. The result
+        is [integer_size] bytes long. *)
+    val of_integer    : integer -> storage
+
+    (** [to_integer s] converts [s] to a integer.
+        If [s] is not [integer_size] long, [Invalid_argument] is raised. *)
+    val to_integer    : storage -> integer
+  end
+
+  module String : S with type storage = string
+  module Bigstring : S with type storage = bigstring
+end
+
 module Hash : sig
   type hash
 

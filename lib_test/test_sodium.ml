@@ -17,9 +17,10 @@
 
 open OUnit2
 
-let suite = "Test Sodium" >::: [
+let suite = "Sodium" >::: [
     Test_random.suite;
     Test_box.suite;
+    Test_scalarmult.suite;
     Test_hash.suite;
   ]
 

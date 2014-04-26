@@ -346,6 +346,81 @@ module Box = struct
   module Bigstring = Make(Storage.Bigstring)
 end
 
+module Scalar_mult = struct
+  let primitive = "curve25519"
+
+  module C = struct
+    open Foreign
+    type buffer = uchar Ctypes.ptr
+
+    let prefix          = "crypto_scalarmult_"^primitive
+
+    let sz_query_type   = void @-> returning size_t
+    let bytes           = foreign (prefix^"_bytes") sz_query_type
+    let scalarbytes     = foreign (prefix^"_scalarbytes") sz_query_type
+
+    let scalarmult      = foreign (prefix)
+                                  (ptr uchar @-> ptr uchar @-> ptr uchar @-> returning int)
+    let scalarmult_base = foreign (prefix^"_base")
+                                  (ptr uchar @-> ptr uchar @-> returning int)
+  end
+
+  let group_elt_size = Size_t.to_int (C.bytes ())
+  let integer_size   = Size_t.to_int (C.scalarbytes ())
+
+  (* Invariant: a group element is group_elt_size bytes long. *)
+  type group_elt = string
+
+  (* Invariant: an integer is integer_size bytes long. *)
+  type integer = string
+
+  let mult scalar elem =
+    let elem' = Storage.String.create group_elt_size in
+    let ret   = Storage.String.(C.scalarmult (to_ptr elem') (to_ptr scalar)
+                                             (to_ptr elem)) in
+    assert (ret = 0); (* always returns 0 *)
+    elem'
+
+  let base scalar =
+    let elem = Storage.String.create group_elt_size in
+    let ret  = Storage.String.(C.scalarmult_base (to_ptr elem) (to_ptr scalar)) in
+    assert (ret = 0); (* always returns 0 *)
+    elem
+
+  module type S = sig
+    type storage
+
+    val of_group_elt  : group_elt -> storage
+    val to_group_elt  : storage -> group_elt
+
+    val of_integer    : integer -> storage
+    val to_integer    : storage -> integer
+  end
+
+  module Make(T: Storage.S) = struct
+    type storage = T.t
+
+    let of_group_elt str =
+      T.of_string str
+
+    let to_group_elt str =
+      if T.length str <> group_elt_size then
+        invalid_arg "Sodium.Scalar_mult.to_group_elt"; (* TODO: proper exn? *)
+      T.to_string str
+
+    let of_integer str =
+      T.of_string str
+
+    let to_integer str =
+      if T.length str <> integer_size then
+        invalid_arg "Sodium.Scalar_mult.to_integer"; (* TODO: proper exn? *)
+      T.to_string str
+  end
+
+  module String = Make(Storage.String)
+  module Bigstring = Make(Storage.Bigstring)
+end
+
 module Hash = struct
   let primitive = "sha512"
 
