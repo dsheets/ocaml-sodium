@@ -31,13 +31,6 @@ type channel
 
 type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-let const_time_equal a b =
-  let result = ref 0 in
-  for i = 0 to (String.length a) - 1 do
-    result := !result lor ((Char.code a.[i]) lxor (Char.code b.[i]))
-  done;
-  !result = 0
-
 module Storage = struct
   module type S = sig
     type t
@@ -125,6 +118,34 @@ let increment_be_string ?(step=1) s =
   in
   incr_byte step ((String.length s) - 1);
   s
+
+module Verify = struct
+  module C = struct
+    open Foreign
+
+    let prefix      = "crypto_verify"
+
+    let verify_type = ptr uchar @-> ptr uchar @-> returning int
+    let verify_16   = foreign (prefix^"_16") verify_type
+    let verify_32   = foreign (prefix^"_32") verify_type
+    (* TODO need newer libsodium *)
+    (* let verify_64   = foreign (prefix^"_64") verify_type *)
+  end
+
+  let equal_fn size =
+    match size with
+    | 16 -> fun a b -> (C.verify_16 (Storage.String.to_ptr a)
+                                    (Storage.String.to_ptr b)) = 0
+    | 32 -> fun a b -> (C.verify_32 (Storage.String.to_ptr a)
+                                    (Storage.String.to_ptr b)) = 0
+    (* | 64 -> fun a b -> (C.verify_64 (Storage.String.to_ptr a)
+                                    (Storage.String.to_ptr b)) = 0 *)
+    | 64 -> fun a b -> ((C.verify_32 (Storage.String.to_ptr a)
+                                     (Storage.String.to_ptr b)) lor
+                        (C.verify_32 ((Storage.String.to_ptr a) +@ 32)
+                                     ((Storage.String.to_ptr b) +@ 32))) = 0
+    | _ -> assert false
+end
 
 module Random = struct
   (* TODO: support changing generator *)
@@ -223,7 +244,11 @@ module Box = struct
 
   let wipe_key = wipe
 
-  let equal_keys = const_time_equal
+  let equal_keys =
+    let () =
+      assert (public_key_size = secret_key_size);
+      assert (public_key_size = channel_key_size)
+    in Verify.equal_fn public_key_size
 
   let equal_public_keys = Verify.equal_fn public_key_size
   let equal_secret_keys = Verify.equal_fn secret_key_size
@@ -374,6 +399,9 @@ module Scalar_mult = struct
   (* Invariant: an integer is integer_size bytes long. *)
   type integer = string
 
+  let equal_group_elt = Verify.equal_fn group_elt_size
+  let equal_integer = Verify.equal_fn integer_size
+
   let mult scalar elem =
     let elem' = Storage.String.create group_elt_size in
     let ret   = Storage.String.(C.scalarmult (to_ptr elem') (to_ptr scalar)
@@ -442,7 +470,7 @@ module Hash = struct
   (* Invariant: a hash is size bytes long. *)
   type hash = string
 
-  let equal_hashes = const_time_equal
+  let equal = Verify.equal_fn size
 
   module type S = sig
     type storage

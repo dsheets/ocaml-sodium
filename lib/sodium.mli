@@ -180,6 +180,12 @@ module Scalar_mult : sig
   (** Size of integers, in bytes. *)
   val integer_size    : int
 
+  (** [equal_group_elt a b] checks [a] and [b] for equality in constant time. *)
+  val equal_group_elt : group_elt -> group_elt -> bool
+
+  (** [equal_integer a b] checks [a] and [b] for equality in constant time. *)
+  val equal_integer   : integer -> integer -> bool
+
   (** [mult n p] multiplies a group element [p] by an integer [n]. *)
   val mult            : integer -> group_elt -> group_elt
 
