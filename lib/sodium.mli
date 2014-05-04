@@ -53,6 +53,9 @@ end
 
 module Box : sig
   type 'a key
+  type secret_key = secret key
+  type public_key = public key
+  type channel_key = channel key
   type keypair = secret key * public key
   type nonce
 
@@ -222,6 +225,8 @@ end
 
 module Sign : sig
   type 'a key
+  type secret_key = secret key
+  type public_key = public key
   type keypair = secret key * public key
 
   (** Primitive used by this implementation. Currently ["ed25519"]. *)
@@ -284,6 +289,7 @@ end
 
 module Secret_box : sig
   type 'a key
+  type secret_key = secret key
   type nonce
 
   (** Primitive used by this implementation. Currently ["xsalsa20poly1305"]. *)
@@ -352,6 +358,7 @@ end
 
 module Stream : sig
   type 'a key
+  type secret_key = secret key
   type nonce
 
   (** Primitive used by this implementation. Currently ["xsalsa20"]. *)
@@ -418,6 +425,7 @@ end
 
 module Auth : sig
   type 'a key
+  type secret_key = secret key
   type auth
 
   (** Primitive used by this implementation. Currently ["hmacsha512256"]. *)

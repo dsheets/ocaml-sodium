@@ -236,6 +236,9 @@ module Box = struct
 
   (* Invariant: a key is {public,secret,channel}_key_size bytes long. *)
   type 'a key = string
+  type secret_key = secret key
+  type public_key = public key
+  type channel_key = channel key
   type keypair = secret key * public key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
@@ -407,6 +410,8 @@ module Sign = struct
 
   (* Invariant: a key is {public,secret}_key_size bytes long. *)
   type 'a key = string
+  type secret_key = secret key
+  type public_key = public key
   type keypair = secret key * public key
 
   let random_keypair () =
@@ -587,6 +592,7 @@ module Secret_box = struct
 
   (* Invariant: a key is key_size bytes long. *)
   type 'a key = string
+  type secret_key = secret key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
   type nonce = string
@@ -702,6 +708,7 @@ module Stream = struct
 
   (* Invariant: a key is key_size bytes long. *)
   type 'a key = string
+  type secret_key = secret key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
   type nonce = string
@@ -813,6 +820,7 @@ end) = struct
 
   (* Invariant: a key is key_size bytes long. *)
   type 'a key = string
+  type secret_key = secret key
 
   (* Invariant: an auth is auth_size bytes long. *)
   type auth = string
