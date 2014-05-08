@@ -27,7 +27,7 @@ type public
 type secret
 type channel
 
-type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+type bigbytes = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Storage = struct
   module type S = sig
@@ -48,8 +48,8 @@ module Storage = struct
     val of_string  : string -> t
   end
 
-  module Bigstring : S with type t = bigstring and type ctype = char ptr = struct
-    type t = bigstring
+  module Bigbytes = struct
+    type t = bigbytes
     type ctype = char ptr
 
     let ctype = ptr char
@@ -80,7 +80,7 @@ module Storage = struct
                   (Array1.sub dst dstoff len)
   end
 
-  module String : S with type t = string and type ctype = string ocaml = struct
+  module String = struct
     type t = string
     type ctype = string ocaml
 
@@ -184,7 +184,7 @@ module Random = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Box = struct
@@ -375,7 +375,7 @@ module Box = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Sign = struct
@@ -481,7 +481,7 @@ module Sign = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Scalar_mult = struct
@@ -558,7 +558,7 @@ module Scalar_mult = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Secret_box = struct
@@ -677,7 +677,7 @@ module Secret_box = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Stream = struct
@@ -786,7 +786,7 @@ module Stream = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Gen_auth(M: sig
@@ -884,7 +884,7 @@ end) = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 module Auth = Gen_auth(struct
@@ -953,7 +953,7 @@ module Hash = struct
   end
 
   module String = Make(Storage.String)
-  module Bigstring = Make(Storage.Bigstring)
+  module Bigbytes = Make(Storage.Bigbytes)
 end
 
 let () =

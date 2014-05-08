@@ -35,7 +35,7 @@ type secret
     a public key. Such a key must be treated as a secret key. *)
 type channel
 
-type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+type bigbytes = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Random : sig
   val stir : unit -> unit
@@ -48,7 +48,7 @@ module Random : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Box : sig
@@ -170,7 +170,7 @@ module Box : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Scalar_mult : sig
@@ -220,7 +220,7 @@ module Scalar_mult : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Sign : sig
@@ -284,7 +284,7 @@ module Sign : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Secret_box : sig
@@ -353,7 +353,7 @@ module Secret_box : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Stream : sig
@@ -420,7 +420,7 @@ module Stream : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module Auth : sig
@@ -476,7 +476,7 @@ module Auth : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end
 
 module One_time_auth : sig
@@ -514,5 +514,5 @@ module Hash : sig
   end
 
   module String : S with type storage = string
-  module Bigstring : S with type storage = bigstring
+  module Bigbytes : S with type storage = bigbytes
 end

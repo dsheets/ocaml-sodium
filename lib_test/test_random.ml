@@ -24,7 +24,7 @@ let test_generate ctxt =
   let rnd = Sodium.Random.String.generate 42 in
   assert_equal ~printer:string_of_int 42 (String.length rnd);
 
-  let rnd = Sodium.Random.Bigstring.generate 42 in
+  let rnd = Sodium.Random.Bigbytes.generate 42 in
   assert_equal ~printer:string_of_int 42 (Bigarray.Array1.dim rnd)
 
 let test_generate_into ctxt =

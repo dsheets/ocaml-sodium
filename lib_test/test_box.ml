@@ -330,8 +330,8 @@ module Test(In : IO)(Out : IO) = struct
     ]
 end
 
-module IO_bigstring = struct
-  include Sodium.Box.Bigstring
+module IO_bigbytes = struct
+  include Sodium.Box.Bigbytes
 
   let ts s =
     let len = String.length s in
@@ -354,7 +354,7 @@ end
 
 let suite = "Box" >::: [
     "String -> String"       >::: (let module M = Test(IO_string)(IO_string) in M.suite);
-    "Bigstring -> String"    >::: (let module M = Test(IO_bigstring)(IO_string) in M.suite);
-    "String -> Bigstring"    >::: (let module M = Test(IO_string)(IO_bigstring) in M.suite);
-    "Bigstring -> Bigstring" >::: (let module M = Test(IO_bigstring)(IO_bigstring) in M.suite);
+    "Bigbytes -> String"    >::: (let module M = Test(IO_bigbytes)(IO_string) in M.suite);
+    "String -> Bigbytes"    >::: (let module M = Test(IO_string)(IO_bigbytes) in M.suite);
+    "Bigbytes -> Bigbytes" >::: (let module M = Test(IO_bigbytes)(IO_bigbytes) in M.suite);
   ]

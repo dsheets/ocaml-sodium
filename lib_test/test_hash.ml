@@ -30,7 +30,7 @@ let test_digest ctxt =
 let test_serialize ctxt =
   let hash = Hash.String.digest "The quick brown fox jumps over the lazy dog" in
   assert_equal (Hash.String.to_hash (Hash.String.of_hash hash)) hash;
-  assert_equal (Hash.Bigstring.to_hash (Hash.Bigstring.of_hash hash)) hash
+  assert_equal (Hash.Bigbytes.to_hash (Hash.Bigbytes.of_hash hash)) hash
 
 let test_equal ctxt =
   let h   = String.make (Hash.size) 'A' in
