@@ -44,8 +44,8 @@ module Storage = struct
     val len_size_t : t -> size_t
     val len_ullong : t -> ullong
     val to_ptr     : t -> ctype
-    val to_string  : t -> string
-    val of_string  : string -> t
+    val to_bytes   : t -> Bytes.t
+    val of_bytes   : Bytes.t -> t
   end
 
   module Bigbytes = struct
@@ -63,14 +63,14 @@ module Storage = struct
     let to_ptr     str = bigarray_start array1 str
     let zero       str pos len = (Array1.fill (Array1.sub str pos len) '\x00')
 
-    let to_string  str =
-      let str' = String.create (Array1.dim str) in
-      String.iteri (fun i _ -> str'.[i] <- Array1.unsafe_get str i) str';
+    let to_bytes str =
+      let str' = Bytes.create (Array1.dim str) in
+      Bytes.iteri (fun i _ -> Bytes.set str' i (Array1.unsafe_get str i)) str';
       str'
 
-    let of_string  str =
-      let str' = create (String.length str) in
-      String.iteri (Array1.unsafe_set str') str;
+    let of_bytes str =
+      let str' = create (Bytes.length str) in
+      Bytes.iteri (Array1.unsafe_set str') str;
       str'
 
     let sub = Array1.sub
@@ -80,22 +80,22 @@ module Storage = struct
                   (Array1.sub dst dstoff len)
   end
 
-  module String = struct
-    type t = string
-    type ctype = string ocaml
+  module Bytes = struct
+    type t = Bytes.t
+    type ctype = Bytes.t ocaml
 
-    let ctype = ocaml_string
+    let ctype = ocaml_bytes
 
-    let create     len = String.create len
-    let length     str = String.length str
-    let len_size_t str = Unsigned.Size_t.of_int (String.length str)
-    let len_ullong str = Unsigned.ULLong.of_int (String.length str)
-    let to_ptr     str = ocaml_string_start str
-    let zero       str pos len = String.fill str pos len '\x00'
-    let to_string  str = str
-    let of_string  str = str
-    let sub            = String.sub
-    let blit           = String.blit
+    let create     len = Bytes.create len
+    let length     byt = Bytes.length byt
+    let len_size_t byt = Unsigned.Size_t.of_int (Bytes.length byt)
+    let len_ullong byt = Unsigned.ULLong.of_int (Bytes.length byt)
+    let to_ptr     byt = ocaml_bytes_start byt
+    let zero       byt pos len = Bytes.fill byt pos len '\x00'
+    let to_bytes   byt = Bytes.copy byt
+    let of_bytes   byt = Bytes.copy byt
+    let sub            = Bytes.sub
+    let blit           = Bytes.blit
   end
 end
 
@@ -105,30 +105,30 @@ module C = struct
   let prefix = "sodium"
 
   let init    = foreign (prefix^"_init")    (void @-> returning void)
-  let memzero = foreign (prefix^"_memzero") (ocaml_string @-> size_t @-> returning void)
-  let memcmp  = foreign (prefix^"_memcmp")  (ocaml_string @-> ocaml_string @-> size_t @-> returning void)
+  let memzero = foreign (prefix^"_memzero") (ocaml_bytes @-> size_t @-> returning void)
+  let memcmp  = foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning void)
 end
 
 let wipe str =
-  C.memzero (Storage.String.to_ptr str) (Storage.String.len_size_t str)
+  C.memzero (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
 
-let increment_be_string ?(step=1) s =
-  let s = String.copy s in
+let increment_be_bytes ?(step=1) b =
+  let b = Bytes.copy b in
   let rec incr_byte step byteno =
-    let res    = (Char.code s.[byteno]) + step in
+    let res    = Char.code (Bytes.get b byteno) + step in
     let lo, hi = res land 0xff, res asr 8 in
-    s.[byteno] <- Char.chr lo;
+    Bytes.set b byteno (Char.chr lo);
     if hi = 0 || byteno = 0 then ()
     else incr_byte hi (byteno - 1)
   in
-  incr_byte step ((String.length s) - 1);
-  s
+  incr_byte step ((Bytes.length b) - 1);
+  b
 
 module Verify = struct
   module C = struct
     open Foreign
 
-    let verify_type = ocaml_string @-> ocaml_string @-> returning int
+    let verify_type = ocaml_bytes @-> ocaml_bytes @-> returning int
     let verify_16   = foreign "crypto_verify_16" verify_type
     let verify_32   = foreign "crypto_verify_32" verify_type
     (* TODO need newer libsodium *)
@@ -137,16 +137,16 @@ module Verify = struct
 
   let equal_fn size =
     match size with
-    | 16 -> fun a b -> (C.verify_16 (Storage.String.to_ptr a)
-                                    (Storage.String.to_ptr b)) = 0
-    | 32 -> fun a b -> (C.verify_32 (Storage.String.to_ptr a)
-                                    (Storage.String.to_ptr b)) = 0
-    (* | 64 -> fun a b -> (C.verify_64 (Storage.String.to_ptr a)
-                                    (Storage.String.to_ptr b)) = 0 *)
-    | 64 -> fun a b -> ((C.verify_32 (Storage.String.to_ptr a)
-                                     (Storage.String.to_ptr b)) lor
-                        (C.verify_32 ((Storage.String.to_ptr a) +@ 32)
-                                     ((Storage.String.to_ptr b) +@ 32))) = 0
+    | 16 -> fun a b -> (C.verify_16 (Storage.Bytes.to_ptr a)
+                                    (Storage.Bytes.to_ptr b)) = 0
+    | 32 -> fun a b -> (C.verify_32 (Storage.Bytes.to_ptr a)
+                                    (Storage.Bytes.to_ptr b)) = 0
+    (* | 64 -> fun a b -> (C.verify_64 (Storage.Bytes.to_ptr a)
+                                    (Storage.Bytes.to_ptr b)) = 0 *)
+    | 64 -> fun a b -> ((C.verify_32 (Storage.Bytes.to_ptr a)
+                                     (Storage.Bytes.to_ptr b)) lor
+                        (C.verify_32 ((Storage.Bytes.to_ptr a) +@ 32)
+                                     ((Storage.Bytes.to_ptr b) +@ 32))) = 0
     | _ -> assert false
 end
 
@@ -183,7 +183,7 @@ module Random = struct
       str
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -203,10 +203,10 @@ module Box = struct
     let boxzerobytes     = foreign (prefix^"_boxzerobytes")   sz_query_type
 
     let box_keypair      = foreign (prefix^"_keypair")
-                                   (ocaml_string @-> ocaml_string @-> returning int)
+                                   (ocaml_bytes @-> ocaml_bytes @-> returning int)
 
     let box_beforenm     = foreign (prefix^"_beforenm")
-                                   (ocaml_string @-> ocaml_string @-> ocaml_string
+                                   (ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
                                     @-> returning int)
   end
 
@@ -214,14 +214,14 @@ module Box = struct
     open Foreign
 
     let box_fn_type      = (T.ctype @-> T.ctype @-> ullong
-                            @-> ocaml_string @-> ocaml_string @-> ocaml_string
+                            @-> ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
                             @-> returning int)
 
     let box              = foreign (prefix) box_fn_type
     let box_open         = foreign (prefix^"_open") box_fn_type
 
     let box_afternm_type = (T.ctype @-> T.ctype @-> ullong
-                            @-> ocaml_string @-> ocaml_string @-> returning int)
+                            @-> ocaml_bytes @-> ocaml_bytes @-> returning int)
 
     let box_afternm      = foreign (prefix^"_afternm") box_afternm_type
     let box_open_afternm = foreign (prefix^"_open_afternm") box_afternm_type
@@ -235,44 +235,44 @@ module Box = struct
   let box_zero_size    = Size_t.to_int (C.boxzerobytes ())
 
   (* Invariant: a key is {public,secret,channel}_key_size bytes long. *)
-  type 'a key = string
+  type 'a key = Bytes.t
   type secret_key = secret key
   type public_key = public key
   type channel_key = channel key
   type keypair = secret key * public key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
-  type nonce = string
+  type nonce = Bytes.t
 
   let random_keypair () =
-    let pk, sk = String.create public_key_size,
-                 String.create secret_key_size in
-    let ret = C.box_keypair (Storage.String.to_ptr pk) (Storage.String.to_ptr sk) in
+    let pk, sk = Storage.Bytes.create public_key_size,
+                 Storage.Bytes.create secret_key_size in
+    let ret = C.box_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
     assert (ret = 0); (* always returns 0 *)
     sk, pk
 
   let random_nonce () =
-    Random.String.generate nonce_size
+    Random.Bytes.generate nonce_size
 
   let wipe_key = wipe
 
   let equal_public_keys = Verify.equal_fn public_key_size
   let equal_secret_keys = Verify.equal_fn secret_key_size
   let equal_channel_keys = Verify.equal_fn channel_key_size
-  let compare_public_keys = String.compare
+  let compare_public_keys = Bytes.compare
 
-  let nonce_of_string s =
-    if String.length s <> nonce_size then
-      raise (Size_mismatch "Box.nonce_of_string");
-    s
+  let nonce_of_bytes b =
+    if Bytes.length b <> nonce_size then
+      raise (Size_mismatch "Box.nonce_of_bytes");
+    b
 
-  let increment_nonce = increment_be_string
+  let increment_nonce = increment_be_bytes
 
   let precompute skey pkey =
-    let params = String.create channel_key_size in
-    let ret = C.box_beforenm (Storage.String.to_ptr params)
-                             (Storage.String.to_ptr pkey)
-                             (Storage.String.to_ptr skey) in
+    let params = Storage.Bytes.create channel_key_size in
+    let ret = C.box_beforenm (Storage.Bytes.to_ptr params)
+                             (Storage.Bytes.to_ptr pkey)
+                             (Storage.Bytes.to_ptr skey) in
     assert (ret = 0); (* always returns 0 *)
     params
 
@@ -306,32 +306,32 @@ module Box = struct
       if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_public_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_public_key str =
       verify_length str public_key_size "Box.to_public_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_secret_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_secret_key str =
       verify_length str secret_key_size "Box.to_secret_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_channel_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_channel_key str =
       verify_length str channel_key_size "Box.to_channel_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_nonce nonce =
-      T.of_string nonce
+      T.of_bytes nonce
 
     let to_nonce str =
       verify_length str nonce_size "Box.to_nonce";
-      T.to_string str
+      T.to_bytes str
 
     let pad a apad bpad f =
       let a' = T.create (apad + T.length a) in
@@ -345,36 +345,36 @@ module Box = struct
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
         let ret = C.box (T.to_ptr ciphertext) (T.to_ptr cleartext)
                         (T.len_ullong cleartext)
-                        (Storage.String.to_ptr nonce)
-                        (Storage.String.to_ptr pkey) (Storage.String.to_ptr skey) in
+                        (Storage.Bytes.to_ptr nonce)
+                        (Storage.Bytes.to_ptr pkey) (Storage.Bytes.to_ptr skey) in
         assert (ret = 0) (* always returns 0 *))
 
     let box_open skey pkey ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
         let ret = C.box_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
                              (T.len_ullong ciphertext)
-                             (Storage.String.to_ptr nonce)
-                             (Storage.String.to_ptr pkey) (Storage.String.to_ptr skey) in
+                             (Storage.Bytes.to_ptr nonce)
+                             (Storage.Bytes.to_ptr pkey) (Storage.Bytes.to_ptr skey) in
         if ret <> 0 then raise Verification_failure)
 
     let fast_box params message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
         let ret = C.box_afternm (T.to_ptr ciphertext) (T.to_ptr cleartext)
                                 (T.len_ullong cleartext)
-                                (Storage.String.to_ptr nonce)
-                                (Storage.String.to_ptr params) in
+                                (Storage.Bytes.to_ptr nonce)
+                                (Storage.Bytes.to_ptr params) in
         assert (ret = 0) (* always returns 0 *))
 
     let fast_box_open params ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
         let ret = C.box_open_afternm (T.to_ptr cleartext) (T.to_ptr ciphertext)
                                      (T.len_ullong ciphertext)
-                                     (Storage.String.to_ptr nonce)
-                                     (Storage.String.to_ptr params) in
+                                     (Storage.Bytes.to_ptr nonce)
+                                     (Storage.Bytes.to_ptr params) in
         if ret <> 0 then raise Verification_failure)
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -391,14 +391,14 @@ module Sign = struct
     let bytes           = foreign (prefix^"_bytes")          sz_query_type
 
     let sign_keypair    = foreign (prefix^"_keypair")
-                                  (ocaml_string @-> ocaml_string @-> returning int)
+                                  (ocaml_bytes @-> ocaml_bytes @-> returning int)
   end
 
   module MakeC(T: Storage.S) = struct
     open Foreign
 
     let sign_fn_type    = (T.ctype @-> ptr ullong @-> T.ctype
-                           @-> ullong @-> ocaml_string @-> returning int)
+                           @-> ullong @-> ocaml_bytes @-> returning int)
 
     let sign            = foreign (prefix) sign_fn_type
     let sign_open       = foreign (prefix^"_open") sign_fn_type
@@ -409,15 +409,15 @@ module Sign = struct
   let reserved_size    = Size_t.to_int (C.bytes ())
 
   (* Invariant: a key is {public,secret}_key_size bytes long. *)
-  type 'a key = string
+  type 'a key = Bytes.t
   type secret_key = secret key
   type public_key = public key
   type keypair = secret key * public key
 
   let random_keypair () =
-    let pk, sk = String.create public_key_size,
-                 String.create secret_key_size in
-    let ret = C.sign_keypair (Storage.String.to_ptr pk) (Storage.String.to_ptr sk) in
+    let pk, sk = Storage.Bytes.create public_key_size,
+                 Storage.Bytes.create secret_key_size in
+    let ret = C.sign_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
     assert (ret = 0); (* always returns 0 *)
     sk, pk
 
@@ -425,7 +425,7 @@ module Sign = struct
 
   let equal_public_keys = Verify.equal_fn public_key_size
   let equal_secret_keys = Verify.equal_fn secret_key_size
-  let compare_public_keys = String.compare
+  let compare_public_keys = Bytes.compare
 
   module type S = sig
     type storage
@@ -448,25 +448,25 @@ module Sign = struct
       if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_public_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_public_key str =
       verify_length str public_key_size "Sign.to_public_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_secret_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_secret_key str =
       verify_length str secret_key_size "Sign.to_secret_key";
-      T.to_string str
+      T.to_bytes str
 
     let sign skey message =
       let signed_msg = T.create ((T.length message) + reserved_size) in
       let signed_len = allocate ullong (Unsigned.ULLong.of_int 0) in
       let ret = C.sign (T.to_ptr signed_msg) signed_len
                        (T.to_ptr message) (T.len_ullong message)
-                       (Storage.String.to_ptr skey) in
+                       (Storage.Bytes.to_ptr skey) in
       assert (ret = 0); (* always returns 0 *)
       T.sub signed_msg 0 (Unsigned.ULLong.to_int (!@ signed_len))
 
@@ -475,12 +475,12 @@ module Sign = struct
       let msg_len = allocate ullong (Unsigned.ULLong.of_int 0) in
       let ret = C.sign_open (T.to_ptr message) msg_len
                             (T.to_ptr signed_msg) (T.len_ullong signed_msg)
-                            (Storage.String.to_ptr pkey) in
+                            (Storage.Bytes.to_ptr pkey) in
       if ret <> 0 then raise Verification_failure;
       T.sub message 0 (Unsigned.ULLong.to_int (!@ msg_len))
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -496,34 +496,34 @@ module Scalar_mult = struct
     let scalarbytes     = foreign (prefix^"_scalarbytes") sz_query_type
 
     let scalarmult      = foreign (prefix)
-                                  (ocaml_string @-> ocaml_string @-> ocaml_string
+                                  (ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
                                    @-> returning int)
     let scalarmult_base = foreign (prefix^"_base")
-                                  (ocaml_string @-> ocaml_string @-> returning int)
+                                  (ocaml_bytes @-> ocaml_bytes @-> returning int)
   end
 
   let group_elt_size = Size_t.to_int (C.bytes ())
   let integer_size   = Size_t.to_int (C.scalarbytes ())
 
   (* Invariant: a group element is group_elt_size bytes long. *)
-  type group_elt = string
+  type group_elt = Bytes.t
 
   (* Invariant: an integer is integer_size bytes long. *)
-  type integer = string
+  type integer = Bytes.t
 
   let equal_group_elt = Verify.equal_fn group_elt_size
   let equal_integer = Verify.equal_fn integer_size
 
   let mult scalar elem =
-    let elem' = Storage.String.create group_elt_size in
-    let ret   = Storage.String.(C.scalarmult (to_ptr elem') (to_ptr scalar)
+    let elem' = Storage.Bytes.create group_elt_size in
+    let ret   = Storage.Bytes.(C.scalarmult (to_ptr elem') (to_ptr scalar)
                                              (to_ptr elem)) in
     assert (ret = 0); (* always returns 0 *)
     elem'
 
   let base scalar =
-    let elem = Storage.String.create group_elt_size in
-    let ret  = Storage.String.(C.scalarmult_base (to_ptr elem) (to_ptr scalar)) in
+    let elem = Storage.Bytes.create group_elt_size in
+    let ret  = Storage.Bytes.(C.scalarmult_base (to_ptr elem) (to_ptr scalar)) in
     assert (ret = 0); (* always returns 0 *)
     elem
 
@@ -541,23 +541,23 @@ module Scalar_mult = struct
     type storage = T.t
 
     let of_group_elt str =
-      T.of_string str
+      T.of_bytes str
 
     let to_group_elt str =
       if T.length str <> group_elt_size then
         raise (Size_mismatch "Scalar_mult.to_group_elt");
-      T.to_string str
+      T.to_bytes str
 
     let of_integer str =
-      T.of_string str
+      T.of_bytes str
 
     let to_integer str =
       if T.length str <> integer_size then
         raise (Size_mismatch "Scalar_mult.to_integer");
-      T.to_string str
+      T.to_bytes str
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -579,7 +579,7 @@ module Secret_box = struct
     open Foreign
 
     let secretbox_fn_ty = (T.ctype @-> T.ctype @-> ullong
-                           @-> ocaml_string @-> ocaml_string @-> returning int)
+                           @-> ocaml_bytes @-> ocaml_bytes @-> returning int)
 
     let secretbox       = foreign (prefix)         secretbox_fn_ty
     let secretbox_open  = foreign (prefix^"_open") secretbox_fn_ty
@@ -591,27 +591,27 @@ module Secret_box = struct
   let box_zero_size = Size_t.to_int (C.boxzerobytes ())
 
   (* Invariant: a key is key_size bytes long. *)
-  type 'a key = string
+  type 'a key = Bytes.t
   type secret_key = secret key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
-  type nonce = string
+  type nonce = Bytes.t
 
   let random_key () =
-    Random.String.generate key_size
+    Random.Bytes.generate key_size
 
   let random_nonce =
     if nonce_size > 8 then
-      fun () -> Random.String.generate nonce_size
+      fun () -> Random.Bytes.generate nonce_size
     else
       fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
 
-  let nonce_of_string s =
-    if String.length s <> nonce_size then
-      raise (Size_mismatch "Secret_box.nonce_of_string");
-    s
+  let nonce_of_bytes b =
+    if Bytes.length b <> nonce_size then
+      raise (Size_mismatch "Secret_box.nonce_of_bytes");
+    b
 
-  let increment_nonce = increment_be_string
+  let increment_nonce = increment_be_bytes
 
   let wipe_key = wipe
 
@@ -638,18 +638,18 @@ module Secret_box = struct
       if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_key str =
       verify_length str key_size "Secret_box.to_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_nonce nonce =
-      T.of_string nonce
+      T.of_bytes nonce
 
     let to_nonce str =
       verify_length str nonce_size "Secret_box.to_nonce";
-      T.to_string str
+      T.to_bytes str
 
     let pad a apad bpad f =
       let a' = T.create (apad + T.length a) in
@@ -663,20 +663,20 @@ module Secret_box = struct
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
         let ret = C.secretbox (T.to_ptr ciphertext) (T.to_ptr cleartext)
                               (T.len_ullong cleartext)
-                              (Storage.String.to_ptr nonce)
-                              (Storage.String.to_ptr key) in
+                              (Storage.Bytes.to_ptr nonce)
+                              (Storage.Bytes.to_ptr key) in
         assert (ret = 0) (* always returns 0 *))
 
     let secret_box_open key ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
         let ret = C.secretbox_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
                                    (T.len_ullong ciphertext)
-                                   (Storage.String.to_ptr nonce)
-                                   (Storage.String.to_ptr key) in
+                                   (Storage.Bytes.to_ptr nonce)
+                                   (Storage.Bytes.to_ptr key) in
         if ret <> 0 then raise Verification_failure)
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -696,38 +696,38 @@ module Stream = struct
     open Foreign
 
     let stream          = foreign (prefix)
-                                  (T.ctype @-> ullong @-> ocaml_string
-                                   @-> ocaml_string @-> returning int)
+                                  (T.ctype @-> ullong @-> ocaml_bytes
+                                   @-> ocaml_bytes @-> returning int)
     let stream_xor      = foreign (prefix^"_xor")
                                   (T.ctype @-> T.ctype @-> ullong
-                                   @-> ocaml_string @-> ocaml_string @-> returning int)
+                                   @-> ocaml_bytes @-> ocaml_bytes @-> returning int)
   end
 
   let key_size      = Size_t.to_int (C.keybytes ())
   let nonce_size    = Size_t.to_int (C.noncebytes ())
 
   (* Invariant: a key is key_size bytes long. *)
-  type 'a key = string
+  type 'a key = Bytes.t
   type secret_key = secret key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
-  type nonce = string
+  type nonce = Bytes.t
 
   let random_key () =
-    Random.String.generate key_size
+    Random.Bytes.generate key_size
 
   let random_nonce =
     if nonce_size > 8 then
-      fun () -> Random.String.generate nonce_size
+      fun () -> Random.Bytes.generate nonce_size
     else
       fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
 
-  let nonce_of_string s =
-    if String.length s <> nonce_size then
-      raise (Size_mismatch "Stream.nonce_of_string");
-    s
+  let nonce_of_bytes b =
+    if Bytes.length b <> nonce_size then
+      raise (Size_mismatch "Stream.nonce_of_bytes");
+    b
 
-  let increment_nonce = increment_be_string
+  let increment_nonce = increment_be_bytes
 
   let wipe_key = wipe
 
@@ -754,24 +754,24 @@ module Stream = struct
       if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_key str =
       verify_length str key_size "Stream.to_key";
-      T.to_string str
+      T.to_bytes str
 
     let of_nonce nonce =
-      T.of_string nonce
+      T.of_bytes nonce
 
     let to_nonce str =
       verify_length str nonce_size "Stream.to_nonce";
-      T.to_string str
+      T.to_bytes str
 
     let stream key len nonce =
       let stream = T.create len in
       let ret = C.stream (T.to_ptr stream) (T.len_ullong stream)
-                         (Storage.String.to_ptr nonce)
-                         (Storage.String.to_ptr key) in
+                         (Storage.Bytes.to_ptr nonce)
+                         (Storage.Bytes.to_ptr key) in
       assert (ret = 0); (* always returns 0 *)
       stream
 
@@ -779,13 +779,13 @@ module Stream = struct
       let ciphertext = T.create (T.length message) in
       let ret = C.stream_xor (T.to_ptr ciphertext)
                              (T.to_ptr message) (T.len_ullong message)
-                             (Storage.String.to_ptr nonce)
-                             (Storage.String.to_ptr key) in
+                             (Storage.Bytes.to_ptr nonce)
+                             (Storage.Bytes.to_ptr key) in
       assert (ret = 0); (* always returns 0 *)
       ciphertext
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -808,8 +808,8 @@ end) = struct
   module MakeC(T: Storage.S) = struct
     open Foreign
 
-    let auth_fn_type  = (ocaml_string @-> T.ctype @-> ullong
-                         @-> ocaml_string @-> returning int)
+    let auth_fn_type  = (ocaml_bytes @-> T.ctype @-> ullong
+                         @-> ocaml_bytes @-> returning int)
 
     let auth          = foreign (prefix)           auth_fn_type
     let auth_verify   = foreign (prefix^"_verify") auth_fn_type
@@ -819,14 +819,14 @@ end) = struct
   let auth_size = Size_t.to_int (C.bytes ())
 
   (* Invariant: a key is key_size bytes long. *)
-  type 'a key = string
+  type 'a key = Bytes.t
   type secret_key = secret key
 
   (* Invariant: an auth is auth_size bytes long. *)
-  type auth = string
+  type auth = Bytes.t
 
   let random_key () =
-    Random.String.generate key_size
+    Random.Bytes.generate key_size
 
   let wipe_key = wipe
 
@@ -853,37 +853,37 @@ end) = struct
       if T.length str <> len then raise (Size_mismatch fn_name)
 
     let of_key key =
-      T.of_string key
+      T.of_bytes key
 
     let to_key =
       let fn_name = M.name^".to_key" in fun str ->
       verify_length str key_size fn_name;
-      T.to_string str
+      T.to_bytes str
 
     let of_auth auth =
-      T.of_string auth
+      T.of_bytes auth
 
     let to_auth =
       let fn_name = M.name^".to_auth" in fun str ->
       verify_length str auth_size fn_name;
-      T.to_string str
+      T.to_bytes str
 
     let auth key message =
-      let auth = Storage.String.create auth_size in
-      let ret = C.auth (Storage.String.to_ptr auth)
+      let auth = Storage.Bytes.create auth_size in
+      let ret = C.auth (Storage.Bytes.to_ptr auth)
                        (T.to_ptr message) (T.len_ullong message)
-                       (Storage.String.to_ptr key) in
+                       (Storage.Bytes.to_ptr key) in
       assert (ret = 0); (* always returns 0 *)
       auth
 
     let verify key auth message =
-      let ret = C.auth_verify (Storage.String.to_ptr auth)
+      let ret = C.auth_verify (Storage.Bytes.to_ptr auth)
                               (T.to_ptr message) (T.len_ullong message)
-                              (Storage.String.to_ptr key) in
+                              (Storage.Bytes.to_ptr key) in
       if ret <> 0 then raise Verification_failure
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
@@ -914,13 +914,13 @@ module Hash = struct
     open Foreign
 
     let hash          = foreign (prefix)
-                                (ocaml_string @-> T.ctype @-> ullong @-> returning int)
+                                (ocaml_bytes @-> T.ctype @-> ullong @-> returning int)
   end
 
   let size = Size_t.to_int (C.hashbytes ())
 
   (* Invariant: a hash is size bytes long. *)
-  type hash = string
+  type hash = Bytes.t
 
   let equal = Verify.equal_fn size
 
@@ -938,21 +938,21 @@ module Hash = struct
     type storage = T.t
 
     let of_hash str =
-      T.of_string str
+      T.of_bytes str
 
     let to_hash str =
       if T.length str <> size then
         raise (Size_mismatch "Hash.to_hash");
-      T.to_string str
+      T.to_bytes str
 
     let digest str =
-      let hash = Storage.String.create size in
-      let ret = C.hash (Storage.String.to_ptr hash) (T.to_ptr str) (T.len_ullong str) in
+      let hash = Storage.Bytes.create size in
+      let ret = C.hash (Storage.Bytes.to_ptr hash) (T.to_ptr str) (T.len_ullong str) in
       assert (ret = 0); (* always returns 0 *)
       hash
   end
 
-  module String = Make(Storage.String)
+  module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
 end
 

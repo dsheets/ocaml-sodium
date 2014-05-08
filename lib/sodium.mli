@@ -47,7 +47,7 @@ module Random : sig
     val generate : int -> storage
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -80,9 +80,9 @@ module Box : sig
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce        : unit -> nonce
 
-  (** [nonce_of_string s] creates a nonce out of string [s].
-      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
-  val nonce_of_string     : string -> nonce
+  (** [nonce_of_bytes b] creates a nonce out of bytes [b].
+      If [b] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_bytes      : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
       number and returns the sum of [n] and [step] with wrap-around.
@@ -169,7 +169,7 @@ module Box : sig
     val fast_box_open   : channel key -> storage -> nonce -> storage
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -219,7 +219,7 @@ module Scalar_mult : sig
     val to_integer    : storage -> integer
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -283,7 +283,7 @@ module Sign : sig
     val sign_open       : public key -> storage -> storage
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -307,9 +307,9 @@ module Secret_box : sig
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
 
-  (** [nonce_of_string s] creates a nonce out of string [s].
-      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
-  val nonce_of_string : string -> nonce
+  (** [nonce_of_bytes b] creates a nonce out of bytes [b].
+      If [b] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_bytes  : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
       number and returns the sum of [n] and [step] with wrap-around.
@@ -352,7 +352,7 @@ module Secret_box : sig
     val secret_box_open : secret key -> storage -> nonce -> storage
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -376,9 +376,9 @@ module Stream : sig
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
 
-  (** [nonce_of_string s] creates a nonce out of string [s].
-      If [s] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
-  val nonce_of_string : string -> nonce
+  (** [nonce_of_bytes b] creates a nonce out of bytes [b].
+      If [b] is not [nonce_size] byte long, [Size_mismatch] is raised. *)
+  val nonce_of_bytes  : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
       number and returns the sum of [n] and [step] with wrap-around.
@@ -419,7 +419,7 @@ module Stream : sig
     val stream_xor      : secret key -> storage -> nonce -> storage
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -475,7 +475,7 @@ module Auth : sig
     val verify  : secret key -> auth -> storage -> unit
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
 
@@ -513,6 +513,6 @@ module Hash : sig
     val digest  : storage -> hash
   end
 
-  module String : S with type storage = string
+  module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end

@@ -21,22 +21,22 @@ let test_stir ctxt =
   Sodium.Random.stir ()
 
 let test_generate ctxt =
-  let rnd = Sodium.Random.String.generate 42 in
-  assert_equal ~printer:string_of_int 42 (String.length rnd);
+  let rnd = Sodium.Random.Bytes.generate 42 in
+  assert_equal ~printer:string_of_int 42 (Bytes.length rnd);
 
   let rnd = Sodium.Random.Bigbytes.generate 42 in
   assert_equal ~printer:string_of_int 42 (Bigarray.Array1.dim rnd)
 
 let test_generate_into ctxt =
-  let str = String.copy "AAAABBBB" in
-  Sodium.Random.String.generate_into str;
-  assert_bool "changes contents" ("AAAABBBB" <> str);
+  let str = Bytes.of_string "AAAABBBB" in
+  Sodium.Random.Bytes.generate_into str;
+  assert_bool "changes contents" ((Bytes.of_string "AAAABBBB") <> str);
 
   let arr = Bigarray.(Array1.create char c_layout 10) in
   Bigarray.Array1.fill arr 'A';
   let arr' = Bigarray.(Array1.create char c_layout 10) in
   Bigarray.Array1.blit arr arr';
-  Sodium.Random.Bigstring.generate_into arr';
+  Sodium.Random.Bigbytes.generate_into arr';
   assert_bool "changes contents" (arr <> arr')
 
 let suite = "Random" >::: [

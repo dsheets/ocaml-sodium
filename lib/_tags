@@ -1,2 +1,2 @@
-<sodium.{ml,mli}>: package(bigarray), package(ctypes.foreign)
+<sodium.{ml,mli}>: package(bytes), package(bigarray), package(ctypes.foreign)
 <sodium.{cma,cmxa}>: use_sodium

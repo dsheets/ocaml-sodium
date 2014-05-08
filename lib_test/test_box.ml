@@ -37,9 +37,11 @@ module Test(In : IO)(Out : IO) = struct
   let drop_byte s = String.sub s 0 ((String.length s)-1)
   let add_byte  s = s^"\000"
   let inv_byte  s =
-    let s = String.copy s in
-    s.[0] <- (char_of_int (0xff lxor (int_of_char s.[0])));
-    s
+    let s = Bytes.of_string s in
+    Bytes.set s 0 (char_of_int (0xff lxor (int_of_char (Bytes.get s 0))));
+    Bytes.to_string s
+
+  let as_b fn = (fun b -> Bytes.of_string (fn (Bytes.to_string b)))
 
   let test_right_inverse ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
@@ -49,7 +51,7 @@ module Test(In : IO)(Out : IO) = struct
   let test_right_inverse_fail_sk ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
     let perturb_sk sk fn =
-      Box.String.to_secret_key (fn (Box.String.of_secret_key sk)) in
+      Box.Bytes.to_secret_key ((as_b fn) (Box.Bytes.of_secret_key sk)) in
     assert_raises (Sodium.Size_mismatch "Box.to_secret_key") (fun () ->
       Out.box_open (perturb_sk sk' drop_byte) pk
         (oi (In.box sk pk' (In.ts message) nonce)) nonce);
@@ -64,7 +66,7 @@ module Test(In : IO)(Out : IO) = struct
   let test_right_inverse_fail_pk ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
     let perturb_pk pk fn =
-      Box.String.to_public_key (fn (Box.String.of_public_key pk)) in
+      Box.Bytes.to_public_key ((as_b fn) (Box.Bytes.of_public_key pk)) in
     assert_raises (Sodium.Size_mismatch "Box.to_public_key") (fun () ->
       Out.box_open sk' pk (oi (In.box sk (perturb_pk pk' drop_byte)
                                        (In.ts message) nonce)) nonce);
@@ -94,7 +96,7 @@ module Test(In : IO)(Out : IO) = struct
   let test_right_inverse_fail_nonce ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
     let perturb_nonce n fn =
-      Box.String.to_nonce (fn (Box.String.of_nonce n)) in
+      Box.Bytes.to_nonce ((as_b fn) (Box.Bytes.of_nonce n)) in
     assert_raises (Sodium.Size_mismatch "Box.to_nonce") (fun () ->
       Out.box_open sk' pk (oi (In.box sk pk' (In.ts message) nonce))
         (perturb_nonce nonce drop_byte));
@@ -163,71 +165,71 @@ module Test(In : IO)(Out : IO) = struct
     ()
 
   let test_equal_public_keys ctxt =
-    let pk   = String.make (Box.public_key_size) 'A' in
-    let pk'  = "B" ^ (String.make (Box.public_key_size - 1) 'A') in
-    let pk'' = (String.make (Box.public_key_size - 1) 'A') ^ "B" in
-    assert_bool "=" (Box.equal_public_keys (Box.String.to_public_key pk)
-                                (Box.String.to_public_key pk));
-    assert_bool "<>" (not (Box.equal_public_keys (Box.String.to_public_key pk)
-                                      (Box.String.to_public_key pk')));
-    assert_bool "<>" (not (Box.equal_public_keys (Box.String.to_public_key pk)
-                                      (Box.String.to_public_key pk'')));
+    let pk   = Bytes.of_string (String.make (Box.public_key_size) 'A') in
+    let pk'  = Bytes.of_string ("B" ^ (String.make (Box.public_key_size - 1) 'A')) in
+    let pk'' = Bytes.of_string ((String.make (Box.public_key_size - 1) 'A') ^ "B") in
+    assert_bool "=" (Box.equal_public_keys (Box.Bytes.to_public_key pk)
+                                (Box.Bytes.to_public_key pk));
+    assert_bool "<>" (not (Box.equal_public_keys (Box.Bytes.to_public_key pk)
+                                      (Box.Bytes.to_public_key pk')));
+    assert_bool "<>" (not (Box.equal_public_keys (Box.Bytes.to_public_key pk)
+                                      (Box.Bytes.to_public_key pk'')));
     ()
 
   let test_equal_secret_keys ctxt =
-    let sk   = String.make (Box.secret_key_size) 'A' in
-    let sk'  = "B" ^ (String.make (Box.secret_key_size - 1) 'A') in
-    let sk'' = (String.make (Box.secret_key_size - 1) 'A') ^ "B" in
-    assert_bool "=" (Box.equal_secret_keys (Box.String.to_secret_key sk)
-                                (Box.String.to_secret_key sk));
-    assert_bool "<>" (not (Box.equal_secret_keys (Box.String.to_secret_key sk)
-                                      (Box.String.to_secret_key sk')));
-    assert_bool "<>" (not (Box.equal_secret_keys (Box.String.to_secret_key sk)
-                                      (Box.String.to_secret_key sk'')));
+    let sk   = Bytes.of_string (String.make (Box.secret_key_size) 'A') in
+    let sk'  = Bytes.of_string ("B" ^ (String.make (Box.secret_key_size - 1) 'A')) in
+    let sk'' = Bytes.of_string ((String.make (Box.secret_key_size - 1) 'A') ^ "B") in
+    assert_bool "=" (Box.equal_secret_keys (Box.Bytes.to_secret_key sk)
+                                (Box.Bytes.to_secret_key sk));
+    assert_bool "<>" (not (Box.equal_secret_keys (Box.Bytes.to_secret_key sk)
+                                      (Box.Bytes.to_secret_key sk')));
+    assert_bool "<>" (not (Box.equal_secret_keys (Box.Bytes.to_secret_key sk)
+                                      (Box.Bytes.to_secret_key sk'')));
     ()
 
   let test_equal_channel_keys ctxt =
-    let ck   = String.make (Box.channel_key_size) 'A' in
-    let ck'  = "B" ^ (String.make (Box.channel_key_size - 1) 'A') in
-    let ck'' = (String.make (Box.channel_key_size - 1) 'A') ^ "B" in
-    assert_bool "=" (Box.equal_channel_keys (Box.String.to_channel_key ck)
-                                (Box.String.to_channel_key ck));
-    assert_bool "<>" (not (Box.equal_channel_keys (Box.String.to_channel_key ck)
-                                      (Box.String.to_channel_key ck')));
-    assert_bool "<>" (not (Box.equal_channel_keys (Box.String.to_channel_key ck)
-                                      (Box.String.to_channel_key ck'')));
+    let ck   = Bytes.of_string (String.make (Box.channel_key_size) 'A') in
+    let ck'  = Bytes.of_string ("B" ^ (String.make (Box.channel_key_size - 1) 'A')) in
+    let ck'' = Bytes.of_string ((String.make (Box.channel_key_size - 1) 'A') ^ "B") in
+    assert_bool "=" (Box.equal_channel_keys (Box.Bytes.to_channel_key ck)
+                                (Box.Bytes.to_channel_key ck));
+    assert_bool "<>" (not (Box.equal_channel_keys (Box.Bytes.to_channel_key ck)
+                                      (Box.Bytes.to_channel_key ck')));
+    assert_bool "<>" (not (Box.equal_channel_keys (Box.Bytes.to_channel_key ck)
+                                      (Box.Bytes.to_channel_key ck'')));
     ()
 
   let test_compare_public_keys ctxt =
-    let pk   = String.make (Box.public_key_size) 'A' in
-    let pk'  = (String.make (Box.public_key_size - 1) 'A') ^ "0" in
-    let pk'' = "B" ^ (String.make (Box.public_key_size - 1) 'A') in
-    assert_equal 0    (Box.compare_public_keys (Box.String.to_public_key pk)
-                                      (Box.String.to_public_key pk));
-    assert_equal 1    (Box.compare_public_keys (Box.String.to_public_key pk)
-                                      (Box.String.to_public_key pk'));
-    assert_equal (-1) (Box.compare_public_keys (Box.String.to_public_key pk)
-                                      (Box.String.to_public_key pk''));
+    let pk   = Bytes.of_string (String.make (Box.public_key_size) 'A') in
+    let pk'  = Bytes.of_string ((String.make (Box.public_key_size - 1) 'A') ^ "0") in
+    let pk'' = Bytes.of_string ("B" ^ (String.make (Box.public_key_size - 1) 'A')) in
+    assert_equal 0    (Box.compare_public_keys (Box.Bytes.to_public_key pk)
+                                      (Box.Bytes.to_public_key pk));
+    assert_equal 1    (Box.compare_public_keys (Box.Bytes.to_public_key pk)
+                                      (Box.Bytes.to_public_key pk'));
+    assert_equal (-1) (Box.compare_public_keys (Box.Bytes.to_public_key pk)
+                                      (Box.Bytes.to_public_key pk''));
     ()
 
   let test_nonce_operations ctxt =
-    let n     = String.make Box.nonce_size '\x00' in
-    let n'    = (String.make (Box.nonce_size - 1) '\x00') ^ "\x01" in
-    let n''   = (String.make (Box.nonce_size - 1) '\x00') ^ "\x02" in
-    let n'''  = (String.make (Box.nonce_size - 3) '\x00') ^ "\x02\x00\x00" in
-    let n'''' = String.make Box.nonce_size '\xff' in
-    assert_bool "=" ((Box.nonce_of_string n) = (Box.nonce_of_string n));
-    assert_bool "<>" ((Box.nonce_of_string n) <> (Box.nonce_of_string n'));
-    assert_raises (Sodium.Size_mismatch "Box.nonce_of_string")
-                  (fun () -> Box.nonce_of_string (n ^ "."));
-    assert_equal (Box.nonce_of_string n')
-                 (Box.increment_nonce (Box.nonce_of_string n));
-    assert_equal (Box.nonce_of_string n'')
-                 (Box.increment_nonce ~step:2 (Box.nonce_of_string n));
-    assert_equal (Box.nonce_of_string n''')
-                 (Box.increment_nonce ~step:0x20000 (Box.nonce_of_string n));
-    assert_equal (Box.nonce_of_string n'''')
-                 (Box.increment_nonce ~step:(-1) (Box.nonce_of_string n))
+    let n     = Bytes.of_string (String.make Box.nonce_size '\x00') in
+    let n'    = Bytes.of_string ((String.make (Box.nonce_size - 1) '\x00') ^ "\x01") in
+    let n''   = Bytes.of_string ((String.make (Box.nonce_size - 1) '\x00') ^ "\x02") in
+    let n'''  = Bytes.of_string ((String.make (Box.nonce_size - 3) '\x00') ^ "\x02\x00\x00") in
+    let n'''' = Bytes.of_string (String.make Box.nonce_size '\xff') in
+    assert_bool "=" ((Box.nonce_of_bytes n) = (Box.nonce_of_bytes n));
+    assert_bool "<>" ((Box.nonce_of_bytes n) <> (Box.nonce_of_bytes n'));
+    assert_raises (Sodium.Size_mismatch "Box.nonce_of_bytes")
+                  (fun () -> Box.nonce_of_bytes ((as_b add_byte) n));
+    assert_equal (Box.nonce_of_bytes n')
+                 (Box.increment_nonce (Box.nonce_of_bytes n));
+    assert_equal (Box.nonce_of_bytes n'')
+                 (Box.increment_nonce ~step:2 (Box.nonce_of_bytes n));
+    assert_equal (Box.nonce_of_bytes n''')
+                 (Box.increment_nonce ~step:0x20000 (Box.nonce_of_bytes n));
+    assert_equal (Box.nonce_of_bytes n'''')
+                 (Box.increment_nonce ~step:(-1) (Box.nonce_of_bytes n))
 
   let convenience = "convenience" >::: [
     "test_wipe"                >:: test_effective_wipe;
@@ -264,9 +266,9 @@ module Test(In : IO)(Out : IO) = struct
     let args = [
       "box";
       hex_of_str message;
-      hex_of_str (Box.String.of_nonce nonce);
-      hex_of_str (Box.String.of_public_key pk);
-      hex_of_str (Box.String.of_secret_key sk');
+      hex_of_str (Bytes.to_string (Box.Bytes.of_nonce nonce));
+      hex_of_str (Bytes.to_string (Box.Bytes.of_public_key pk));
+      hex_of_str (Bytes.to_string (Box.Bytes.of_secret_key sk'));
     ] in
     assert_command ~ctxt
       ~foutput:(check_nacl cs) nacl_runner args
@@ -279,18 +281,18 @@ module Test(In : IO)(Out : IO) = struct
       nacl_runner
       ["box_open";
        hex_of_str (In.st c);
-       hex_of_str (Box.String.of_nonce nonce);
-       hex_of_str (Box.String.of_public_key pk');
-       hex_of_str (Box.String.of_secret_key sk)]
+       hex_of_str (Bytes.to_string (Box.Bytes.of_nonce nonce));
+       hex_of_str (Bytes.to_string (Box.Bytes.of_public_key pk'));
+       hex_of_str (Bytes.to_string (Box.Bytes.of_secret_key sk))]
 
   let test_nacl_box_beforenm ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
     assert_command ~ctxt
-      ~foutput:(check_nacl (Box.String.of_channel_key (Box.precompute sk' pk)))
+      ~foutput:(check_nacl (Bytes.to_string (Box.Bytes.of_channel_key (Box.precompute sk' pk))))
       nacl_runner
       ["box_beforenm";
-       hex_of_str (Box.String.of_public_key pk);
-       hex_of_str (Box.String.of_secret_key sk')]
+       hex_of_str (Bytes.to_string (Box.Bytes.of_public_key pk));
+       hex_of_str (Bytes.to_string (Box.Bytes.of_secret_key sk'))]
 
   let test_nacl_box_afternm ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
@@ -300,8 +302,8 @@ module Test(In : IO)(Out : IO) = struct
       nacl_runner
       ["box_afternm";
        hex_of_str message;
-       hex_of_str (Box.String.of_nonce nonce);
-       hex_of_str (Box.String.of_channel_key ck)]
+       hex_of_str (Bytes.to_string (Box.Bytes.of_nonce nonce));
+       hex_of_str (Bytes.to_string (Box.Bytes.of_channel_key ck))]
 
   let test_nacl_box_open_afternm ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
@@ -312,8 +314,8 @@ module Test(In : IO)(Out : IO) = struct
       nacl_runner
       ["box_open_afternm";
        hex_of_str (In.st c);
-       hex_of_str (Box.String.of_nonce nonce);
-       hex_of_str (Box.String.of_channel_key ck)]
+       hex_of_str (Bytes.to_string (Box.Bytes.of_nonce nonce));
+       hex_of_str (Bytes.to_string (Box.Bytes.of_channel_key ck))]
 
   let nacl = "nacl" >::: [
       "test_box" >:: test_nacl_box;
@@ -335,26 +337,26 @@ module IO_bigbytes = struct
 
   let ts s =
     let len = String.length s in
-    let b = Bigarray.(Array1.create char c_layout len) in
-    for i = 0 to len - 1 do b.{i} <- s.[i] done;
-    b
+    let t = Bigarray.(Array1.create char c_layout len) in
+    for i = 0 to len - 1 do t.{i} <- s.[i] done;
+    t
   let st t =
     let len = Bigarray.Array1.dim t in
-    let s = String.create len in
-    for i = 0 to len - 1 do s.[i] <- t.{i} done;
-    s
+    let b = Bytes.create len in
+    for i = 0 to len - 1 do Bytes.set b i t.{i} done;
+    Bytes.to_string b
 end
 
-module IO_string = struct
-  include Sodium.Box.String
+module IO_bytes = struct
+  include Sodium.Box.Bytes
 
-  let ts s = s
-  let st t = t
+  let ts s = Bytes.of_string s
+  let st t = Bytes.to_string t
 end
 
 let suite = "Box" >::: [
-    "String -> String"       >::: (let module M = Test(IO_string)(IO_string) in M.suite);
-    "Bigbytes -> String"    >::: (let module M = Test(IO_bigbytes)(IO_string) in M.suite);
-    "String -> Bigbytes"    >::: (let module M = Test(IO_string)(IO_bigbytes) in M.suite);
+    "Bytes -> Bytes"       >::: (let module M = Test(IO_bytes)(IO_bytes) in M.suite);
+    "Bigbytes -> Bytes"    >::: (let module M = Test(IO_bigbytes)(IO_bytes) in M.suite);
+    "Bytes -> Bigbytes"    >::: (let module M = Test(IO_bytes)(IO_bigbytes) in M.suite);
     "Bigbytes -> Bigbytes" >::: (let module M = Test(IO_bigbytes)(IO_bigbytes) in M.suite);
   ]

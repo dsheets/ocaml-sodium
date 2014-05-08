@@ -3,6 +3,8 @@ open Ocamlbuild_plugin;;
 dispatch begin
   function
   | After_rules ->
+    (* flag ["compile"; "ocaml"] (A"-safe-string"); *)
+
     flag ["link"; "library"; "ocaml"; "byte"; "use_sodium"]
       (S[A"-dllib"; A("-lsodium"); A"-cclib"; A("-lsodium")]);
 

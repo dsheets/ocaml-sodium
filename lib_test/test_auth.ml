@@ -18,46 +18,48 @@
 open OUnit2
 open Sodium
 
+let add_byte b = Bytes.concat (Bytes.of_string "") [b; Bytes.of_string "\x00"]
+
 module Test(A: sig include module type of Auth val name : string end) = struct
   let test_equal_keys ctxt =
-    let sk   = String.make (A.key_size) 'A' in
-    let sk'  = "B" ^ (String.make (A.key_size - 1) 'A') in
-    let sk'' = (String.make (A.key_size - 1) 'A') ^ "B" in
-    assert_bool "=" (A.equal_keys (A.String.to_key sk)
-                                  (A.String.to_key sk));
-    assert_bool "<>" (not (A.equal_keys (A.String.to_key sk)
-                                        (A.String.to_key sk')));
-    assert_bool "<>" (not (A.equal_keys (A.String.to_key sk)
-                                        (A.String.to_key sk'')))
+    let sk   = Bytes.make (A.key_size) 'A' in
+    let sk'  = Bytes.of_string ("B" ^ (String.make (A.key_size - 1) 'A')) in
+    let sk'' = Bytes.of_string ((String.make (A.key_size - 1) 'A') ^ "B") in
+    assert_bool "=" (A.equal_keys (A.Bytes.to_key sk)
+                                  (A.Bytes.to_key sk));
+    assert_bool "<>" (not (A.equal_keys (A.Bytes.to_key sk)
+                                        (A.Bytes.to_key sk')));
+    assert_bool "<>" (not (A.equal_keys (A.Bytes.to_key sk)
+                                        (A.Bytes.to_key sk'')))
 
   let test_permute ctxt =
     let k = A.random_key () in
     assert_raises (Size_mismatch (A.name^".to_key"))
-                  (fun () -> (A.String.to_key ((A.String.of_key k) ^ "\x00")));
+                  (fun () -> (A.Bytes.to_key (add_byte (A.Bytes.of_key k))));
     assert_raises (Size_mismatch (A.name^".to_auth"))
-                  (fun () -> (A.String.to_auth "\x00"))
+                  (fun () -> (A.Bytes.to_auth (Bytes.of_string "\x00")))
 
   let setup () =
-    A.random_key (), "wild wild fox"
+    A.random_key (), Bytes.of_string "wild wild fox"
 
   let test_auth_verify ctxt =
     let k, msg = setup () in
-    let auth = A.String.auth k msg in
-    A.String.verify k auth msg
+    let auth = A.Bytes.auth k msg in
+    A.Bytes.verify k auth msg
 
   let test_auth_verify_fail_permute ctxt =
     let k, msg = setup () in
-    let auth = A.String.auth k msg in
-    let auth = let s = A.String.of_auth auth in s.[10] <- 'a'; A.String.to_auth s in
+    let auth = A.Bytes.auth k msg in
+    let auth = let s = A.Bytes.of_auth auth in Bytes.set s 10 'a'; A.Bytes.to_auth s in
     assert_raises Verification_failure
-                  (fun () -> A.String.verify k auth msg)
+                  (fun () -> A.Bytes.verify k auth msg)
 
   let test_auth_verify_fail_key ctxt =
     let k, msg = setup () in
-    let auth = A.String.auth k msg in
+    let auth = A.Bytes.auth k msg in
     let k' = A.random_key () in
     assert_raises Verification_failure
-                  (fun () -> A.String.verify k' auth msg)
+                  (fun () -> A.Bytes.verify k' auth msg)
 
   let suite = A.name >::: [
       "test_equal_keys"               >:: test_equal_keys;
