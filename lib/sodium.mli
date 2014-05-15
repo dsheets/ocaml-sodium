@@ -56,7 +56,7 @@ module Box : sig
   type secret_key = secret key
   type public_key = public key
   type channel_key = channel key
-  type keypair = secret key * public key
+  type key_pair = secret key * public key
   type nonce
 
   (** Primitive used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
@@ -74,8 +74,8 @@ module Box : sig
   (** Size of nonces, in bytes. *)
   val nonce_size          : int
 
-  (** [random_keypair ()] generates a random key pair. *)
-  val random_keypair      : unit -> keypair
+  (** [random_key_pair ()] generates a random key pair. *)
+  val random_key_pair      : unit -> key_pair
 
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce        : unit -> nonce
@@ -227,7 +227,7 @@ module Sign : sig
   type 'a key
   type secret_key = secret key
   type public_key = public key
-  type keypair = secret key * public key
+  type key_pair = secret key * public key
 
   (** Primitive used by this implementation. Currently ["ed25519"]. *)
   val primitive           : string
@@ -238,8 +238,8 @@ module Sign : sig
   (** Size of secret keys, in bytes. *)
   val secret_key_size     : int
 
-  (** [random_keypair ()] generates a random key pair. *)
-  val random_keypair      : unit -> keypair
+  (** [random_key_pair ()] generates a random key pair. *)
+  val random_key_pair      : unit -> key_pair
 
   (** [wipe_key k] overwrites [k] with zeroes. *)
   val wipe_key            : 'a key -> unit

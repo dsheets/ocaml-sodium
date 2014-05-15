@@ -55,14 +55,14 @@ let test_compare_public_keys ctxt =
   ()
 
 let test_permute ctxt =
-  let (sk, pk) = Sign.random_keypair () in
+  let (sk, pk) = Sign.random_key_pair () in
   assert_raises (Size_mismatch "Sign.to_public_key")
                 (fun () -> (Sign.Bytes.to_public_key (add_byte (Sign.Bytes.of_public_key pk))));
   assert_raises (Size_mismatch "Sign.to_secret_key")
                 (fun () -> (Sign.Bytes.to_secret_key (add_byte (Sign.Bytes.of_secret_key sk))))
 
 let setup () =
-  Sign.random_keypair (), Bytes.of_string "fuwa-fuwa-fuwa"
+  Sign.random_key_pair (), Bytes.of_string "fuwa-fuwa-fuwa"
 
 let test_sign ctxt =
   let (sk, pk), msg = setup () in
@@ -79,7 +79,7 @@ let test_sign_fail_permute ctxt =
 
 let test_sign_fail_key ctxt =
   let (sk, pk), msg = setup () in
-  let (sk',pk') = Sign.random_keypair () in
+  let (sk',pk') = Sign.random_key_pair () in
   let smsg = Sign.Bytes.sign sk msg in
   assert_raises Verification_failure
                 (fun () -> ignore (Sign.Bytes.sign_open pk' smsg))

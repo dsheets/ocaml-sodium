@@ -31,7 +31,7 @@ module Test(In : IO)(Out : IO) = struct
   let oi x = Out.ts (In.st x)
 
   let setup () =
-    (Box.random_keypair (), Box.random_keypair (),
+    (Box.random_key_pair (), Box.random_key_pair (),
      "The rooster crows at midnight.", Box.random_nonce ())
 
   let drop_byte s = String.sub s 0 ((String.length s)-1)

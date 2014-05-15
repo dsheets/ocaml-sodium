@@ -239,12 +239,12 @@ module Box = struct
   type secret_key = secret key
   type public_key = public key
   type channel_key = channel key
-  type keypair = secret key * public key
+  type key_pair = secret key * public key
 
   (* Invariant: a nonce is nonce_size bytes long. *)
   type nonce = Bytes.t
 
-  let random_keypair () =
+  let random_key_pair () =
     let pk, sk = Storage.Bytes.create public_key_size,
                  Storage.Bytes.create secret_key_size in
     let ret = C.box_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
@@ -412,9 +412,9 @@ module Sign = struct
   type 'a key = Bytes.t
   type secret_key = secret key
   type public_key = public key
-  type keypair = secret key * public key
+  type key_pair = secret key * public key
 
-  let random_keypair () =
+  let random_key_pair () =
     let pk, sk = Storage.Bytes.create public_key_size,
                  Storage.Bytes.create secret_key_size in
     let ret = C.sign_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
