@@ -27,7 +27,8 @@ type public
 type secret
 type channel
 
-type bigbytes = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+type bigbytes =
+  (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Storage = struct
   module type S = sig
@@ -251,7 +252,8 @@ module Box = struct
   let random_keypair () =
     let pk, sk = Storage.Bytes.create public_key_size,
                  Storage.Bytes.create secret_key_size in
-    let ret = C.box_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
+    let ret =
+      C.box_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
     assert (ret = 0); (* always returns 0 *)
     sk, pk
 
@@ -350,7 +352,8 @@ module Box = struct
         let ret = C.box (T.to_ptr ciphertext) (T.to_ptr cleartext)
                         (T.len_ullong cleartext)
                         (Storage.Bytes.to_ptr nonce)
-                        (Storage.Bytes.to_ptr pkey) (Storage.Bytes.to_ptr skey) in
+                        (Storage.Bytes.to_ptr pkey)
+                        (Storage.Bytes.to_ptr skey) in
         assert (ret = 0) (* always returns 0 *))
 
     let box_open skey pkey ciphertext nonce =
@@ -358,7 +361,8 @@ module Box = struct
         let ret = C.box_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
                              (T.len_ullong ciphertext)
                              (Storage.Bytes.to_ptr nonce)
-                             (Storage.Bytes.to_ptr pkey) (Storage.Bytes.to_ptr skey) in
+                             (Storage.Bytes.to_ptr pkey)
+                             (Storage.Bytes.to_ptr skey) in
         if ret <> 0 then raise Verification_failure)
 
     let fast_box params message nonce =
@@ -422,7 +426,8 @@ module Sign = struct
   let random_keypair () =
     let pk, sk = Storage.Bytes.create public_key_size,
                  Storage.Bytes.create secret_key_size in
-    let ret = C.sign_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
+    let ret =
+      C.sign_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
     assert (ret = 0); (* always returns 0 *)
     sk, pk
 
@@ -610,7 +615,10 @@ module Secret_box = struct
     if nonce_size > 8 then
       fun () -> Random.Bytes.generate nonce_size
     else
-      fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
+      fun () ->
+        raise (Failure
+                 "Randomly generated nonces 8 bytes long or less are unsafe"
+        )
 
   let nonce_of_bytes b =
     if Bytes.length b <> nonce_size then
@@ -727,7 +735,10 @@ module Stream = struct
     if nonce_size > 8 then
       fun () -> Random.Bytes.generate nonce_size
     else
-      fun () -> raise (Failure "Randomly generated nonces 8 bytes long or less are unsafe")
+      fun () ->
+        raise (Failure
+                 "Randomly generated nonces 8 bytes long or less are unsafe"
+        )
 
   let nonce_of_bytes b =
     if Bytes.length b <> nonce_size then
@@ -955,7 +966,8 @@ module Hash = struct
 
     let digest str =
       let hash = Storage.Bytes.create size in
-      let ret = C.hash (Storage.Bytes.to_ptr hash) (T.to_ptr str) (T.len_ullong str) in
+      let ret = C.hash (Storage.Bytes.to_ptr hash) (T.to_ptr str)
+        (T.len_ullong str) in
       assert (ret = 0); (* always returns 0 *)
       hash
   end

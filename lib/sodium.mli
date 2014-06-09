@@ -35,7 +35,8 @@ type secret
     a public key. Such a key must be treated as a secret key. *)
 type channel
 
-type bigbytes = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+type bigbytes =
+  (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Random : sig
   val stir : unit -> unit
@@ -59,7 +60,8 @@ module Box : sig
   type keypair = secret key * public key
   type nonce
 
-  (** Primitive used by this implementation. Currently ["curve25519xsalsa20poly1305"]. *)
+  (** Primitive used by this implementation.
+      Currently ["curve25519xsalsa20poly1305"]. *)
   val primitive           : string
 
   (** Size of public keys, in bytes. *)
@@ -97,13 +99,16 @@ module Box : sig
       of any number of messages. *)
   val precompute          : secret key -> public key -> channel key
 
-  (** [equal_public_keys a b] checks [a] and [b] for equality in constant time. *)
+  (** [equal_public_keys a b] checks [a] and [b] for equality in constant
+      time. *)
   val equal_public_keys   : public key -> public key -> bool
 
-  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant time. *)
+  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant
+      time. *)
   val equal_secret_keys   : secret key -> secret key -> bool
 
-  (** [equal_channel_keys a b] checks [a] and [b] for equality in constant time. *)
+  (** [equal_channel_keys a b] checks [a] and [b] for equality in constant
+      time. *)
   val equal_channel_keys  : channel key -> channel key -> bool
 
   (** [compare_public_keys a b] compares [a] and [b]. *)
@@ -244,10 +249,12 @@ module Sign : sig
   (** [wipe_key k] overwrites [k] with zeroes. *)
   val wipe_key            : 'a key -> unit
 
-  (** [equal_public_keys a b] checks [a] and [b] for equality in constant time. *)
+  (** [equal_public_keys a b] checks [a] and [b] for equality in constant
+      time. *)
   val equal_public_keys   : public key -> public key -> bool
 
-  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant time. *)
+  (** [equal_secret_keys a b] checks [a] and [b] for equality in constant
+      time. *)
   val equal_secret_keys   : secret key -> secret key -> bool
 
   (** [compare_public_keys a b] compares [a] and [b]. *)
@@ -342,13 +349,14 @@ module Secret_box : sig
     val to_nonce        : storage -> nonce
 
     (** [secret_box k m n] encrypts and authenticates a message [m] using
-        a secret key [k] and a nonce [n], and returns the resulting ciphertext. *)
+        a secret key [k] and a nonce [n], and returns the resulting
+        ciphertext. *)
     val secret_box      : secret key -> storage -> nonce -> storage
 
     (** [secret_box_open k c n] verifies and decrypts a ciphertext [c] using
-        a secret key [k] and a nonce [n], and returns the resulting plaintext [m].
-        If authenticity of message cannot be verified, [Verification_failure]
-        is raised. *)
+        a secret key [k] and a nonce [n], and returns the resulting plaintext
+        [m]. If authenticity of message cannot be verified,
+        [Verification_failure] is raised. *)
     val secret_box_open : secret key -> storage -> nonce -> storage
   end
 
