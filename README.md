@@ -1,7 +1,7 @@
 # ocaml-sodium
 
 [Ctypes](https://github.com/ocamllabs/ocaml-ctypes) bindings to
-[libsodium 0.4.3+](https://github.com/jedisct1/libsodium) which wraps
+[libsodium 0.4.4+](https://github.com/jedisct1/libsodium) which wraps
 [NaCl](http://nacl.cr.yp.to/).
 
 All original NaCl primitives are wrapped. `crypto_shorthash` and
@@ -12,8 +12,8 @@ open Sodium
 let nonce = Box.random_nonce () in
 let (sk, pk ) = Box.random_keypair () in
 let (sk',pk') = Box.random_keypair () in
-let c = Box.String.box sk pk' "Hello, Spooky World!" nonce in
-let m = Box.String.box_open sk' pk c nonce in
+let c = Box.Bytes.box sk pk' "Hello, Spooky World!" nonce in
+let m = Box.Bytes.box_open sk' pk c nonce in
 print_endline (String.escaped c);
 print_endline m
 ```
@@ -35,8 +35,7 @@ should ensure that nonces used for cryptographic operations are
 
 ## Tests
 
-Both internal consistency tests and tests against the NaCl distribution,
-rather than *libsodium*, may be found in `lib_test`.
+Internal consistency tests may be found in `lib_test`.
 
 ### Salt
 

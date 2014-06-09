@@ -1,0 +1,6 @@
+0.2.0 (2014-06-09):
+* Complete bindings thanks to major contributions by whitequark (Peter Zotov)
+* Many breaking changes with lots of interface improvements
+
+0.1.0 (2013-08-11):
+* Initial public release.
