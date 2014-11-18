@@ -1,6 +1,6 @@
 open Ctypes
 
-module BindStorage(T: functor(_: Sodium_storage.S) -> sig end) = struct
+module BindStorage(T: functor(S: Sodium_storage.S) -> sig end) = struct
   module Bytes = T(Sodium_storage.Bytes)
   module Bigbytes = T(Sodium_storage.Bigbytes)
 end
