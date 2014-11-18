@@ -19,7 +19,8 @@ dispatch begin
     flag ["c"; "compile"; "debug"] & A"-g";
 
     (* Linking sodium *)
-    flag ["c"; "compile"; "use_sodium"] & S[A"-ccopt"; A"-Wno-pointer-sign"];
+    flag ["c"; "compile"; "use_sodium"] &
+      S[A"-ccopt"; A"--std=c99 -Wall -Wno-pointer-sign -pedantic"];
     flag ["c"; "ocamlmklib"; "use_sodium"] & A"-lsodium";
 
     (* Linking generated stubs *)
