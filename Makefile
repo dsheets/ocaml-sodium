@@ -15,7 +15,7 @@ test: _build/lib_test/nacl_runner
 
 install: all
 	ocamlfind install sodium lib/META \
-		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmt sodium.cma sodium.cmxa \
+		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti sodium.cma sodium.cmxa \
 		                        sodium$(EXT_LIB) dllsodium_stubs$(EXT_DLL) libsodium_stubs$(EXT_LIB))
 
 uninstall:
