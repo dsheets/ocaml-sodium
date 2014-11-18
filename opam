@@ -13,5 +13,7 @@ depends: [
   "ctypes" {>= "0.3.2"}
 ]
 depexts: [
+  [ ["debian"] ["libsodium-dev"] ]
+  [ ["ubuntu"] ["libsodium-dev"] ]
   [ ["source" "linux"] ["https://gist.github.com/avsm/9037146/raw"] ]
 ]
