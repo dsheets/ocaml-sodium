@@ -233,6 +233,7 @@ module Sign : sig
   type secret_key = secret key
   type public_key = public key
   type keypair = secret key * public key
+  type signature
 
   (** Primitive used by this implementation. Currently ["ed25519"]. *)
   val primitive           : string
@@ -242,6 +243,9 @@ module Sign : sig
 
   (** Size of secret keys, in bytes. *)
   val secret_key_size     : int
+
+  (** Size of signatures, in bytes. *)
+  val signature_size      : int
 
   (** [random_keypair ()] generates a random key pair. *)
   val random_keypair      : unit -> keypair
@@ -279,6 +283,14 @@ module Sign : sig
         If [s] is not [secret_key_size] long, [Size_mismatch] is raised. *)
     val to_secret_key   : storage -> secret key
 
+    (** [of_signature a] converts [a] to type [storage]. The result
+        is [signature_size] bytes long. *)
+    val of_signature    : signature -> storage
+
+    (** [to_signature s] converts [s] to a signature.
+        If [s] is not [signature_size] long, [Size_mismatch] is raised. *)
+    val to_signature    : storage -> signature
+
     (** [sign sk m] signs a message [m] using the signer's secret key [sk],
         and returns the resulting signed message. *)
     val sign            : secret key -> storage -> storage
@@ -288,6 +300,15 @@ module Sign : sig
         If authenticity of message cannot be verified, [Verification_failure]
         is raised. *)
     val sign_open       : public key -> storage -> storage
+
+    (** [sign_detached sk m] signs a message [m] using the signer's secret
+        key [sk], and returns the signature. *)
+    val sign_detached   : secret key -> storage -> signature
+
+    (** [verify pk s m] checks that [s] is a correct signature of a message
+        [m] under the public key [pk]. If it is not, [Verification_failed]
+        is raised. *)
+    val verify          : public key -> signature -> storage -> unit
   end
 
   module Bytes : S with type storage = Bytes.t

@@ -84,6 +84,34 @@ let test_sign_fail_key ctxt =
   assert_raises Verification_failure
                 (fun () -> ignore (Sign.Bytes.sign_open pk' smsg))
 
+let test_sign_detached ctxt =
+  let (sk, pk), msg = setup () in
+  let sign = Sign.Bytes.sign_detached sk msg in
+  Sign.Bytes.verify pk sign msg
+
+let test_sign_detached_fail_permute ctxt =
+  let (sk, pk), msg = setup () in
+  let sign = Sign.Bytes.sign_detached sk msg in
+  let sign' = Sign.Bytes.of_signature sign in
+  Bytes.set sign' 10 'a';
+  let sign = Sign.Bytes.to_signature sign' in
+  assert_raises Verification_failure
+                (fun () -> ignore (Sign.Bytes.verify pk sign msg))
+
+let test_sign_detached_fail_permute_msg ctxt =
+  let (sk, pk), msg = setup () in
+  let sign = Sign.Bytes.sign_detached sk msg in
+  Bytes.set msg 10 'a';
+  assert_raises Verification_failure
+                (fun () -> ignore (Sign.Bytes.verify pk sign msg))
+
+let test_sign_detached_fail_key ctxt =
+  let (sk, pk), msg = setup () in
+  let (sk',pk') = Sign.random_keypair () in
+  let sign = Sign.Bytes.sign_detached sk msg in
+  assert_raises Verification_failure
+                (fun () -> ignore (Sign.Bytes.verify pk' sign msg))
+
 let suite = "Sign" >::: [
     "test_equal_public_keys"   >:: test_equal_public_keys;
     "test_equal_secret_keys"   >:: test_equal_secret_keys;
@@ -92,4 +120,8 @@ let suite = "Sign" >::: [
     "test_sign"                >:: test_sign;
     "test_sign_fail_permute"   >:: test_sign_fail_permute;
     "test_sign_fail_key"       >:: test_sign_fail_key;
+    "test_sign_detached"       >:: test_sign_detached;
+    "test_sign_detached_fail_permute" >:: test_sign_detached_fail_permute;
+    "test_sign_detached_fail_permute_msg" >:: test_sign_detached_fail_permute_msg;
+    "test_sign_detached_fail_key" >:: test_sign_detached_fail_key;
   ]

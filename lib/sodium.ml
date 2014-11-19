@@ -253,12 +253,16 @@ module Sign = struct
   let public_key_size  = Size_t.to_int (C.publickeybytes ())
   let secret_key_size  = Size_t.to_int (C.secretkeybytes ())
   let reserved_size    = Size_t.to_int (C.bytes ())
+  let signature_size   = Size_t.to_int (C.bytes ())
 
   (* Invariant: a key is {public,secret}_key_size bytes long. *)
   type 'a key = Bytes.t
   type secret_key = secret key
   type public_key = public key
   type keypair = secret key * public key
+
+  (* Invariant: an auth is signature_size bytes long. *)
+  type signature = Bytes.t
 
   let random_keypair () =
     let pk, sk = Storage.Bytes.create public_key_size,
@@ -283,8 +287,14 @@ module Sign = struct
     val of_secret_key   : secret key -> storage
     val to_secret_key   : storage -> secret key
 
+    val of_signature    : signature -> storage
+    val to_signature    : storage -> signature
+
     val sign            : secret key -> storage -> storage
     val sign_open       : public key -> storage -> storage
+
+    val sign_detached   : secret key -> storage -> signature
+    val verify          : public key -> signature -> storage -> unit
   end
 
   module Make(T: Storage.S) = struct
@@ -308,6 +318,13 @@ module Sign = struct
       verify_length str secret_key_size "Sign.to_secret_key";
       T.to_bytes str
 
+    let of_signature sign =
+      T.of_bytes sign
+
+    let to_signature str =
+      verify_length str signature_size "Sign.to_signature";
+      T.to_bytes str
+
     let sign skey message =
       let signed_msg = T.create ((T.length message) + reserved_size) in
       let signed_len = allocate ullong (Unsigned.ULLong.of_int 0) in
@@ -325,6 +342,19 @@ module Sign = struct
                             (Storage.Bytes.to_ptr pkey) in
       if ret <> 0 then raise Verification_failure;
       T.sub message 0 (Unsigned.ULLong.to_int (!@ msg_len))
+
+    let sign_detached skey message =
+      let signature = T.create signature_size in
+      let ret = C.sign_detached (T.to_ptr signature) None
+                                (T.to_ptr message) (T.len_ullong message)
+                                (Storage.Bytes.to_ptr skey) in
+      assert (ret = 0); (* always returns 0 *)
+      T.to_bytes signature
+
+    let verify pkey (signature:signature) message =
+      let ret = C.verify (Storage.Bytes.to_ptr signature) (T.to_ptr message)
+                         (T.len_ullong message) (Storage.Bytes.to_ptr pkey) in
+      if ret <> 0 then raise Verification_failure
   end
 
   module Bytes = Make(Storage.Bytes)

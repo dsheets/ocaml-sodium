@@ -75,6 +75,16 @@ module C(F: Cstubs.FOREIGN) = struct
 
       let sign            = F.foreign (prefix) sign_fn_type
       let sign_open       = F.foreign (prefix^"_open") sign_fn_type
+
+      let sign_detached_type = (T.ctype @-> ptr_opt ullong @-> T.ctype
+                                @-> ullong @-> ocaml_bytes @-> returning int)
+
+      let sign_detached   = F.foreign (prefix^"_detached") sign_detached_type
+
+      let verify_type     = (ocaml_bytes @-> T.ctype @-> ullong
+                             @-> ocaml_bytes @-> returning int)
+
+      let verify          = F.foreign (prefix^"_verify_detached") verify_type
     end
   end
 
