@@ -1,0 +1,6 @@
+B _build/**
+S lib
+S lib_gen
+PKG bytes
+PKG ctypes.stubs
+PKG ocamlbuild

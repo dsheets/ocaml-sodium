@@ -1,15 +1,22 @@
-all: _build/lib/dllsodium.so
-	ocamlbuild -use-ocamlfind lib/sodium.cma lib/sodium.cmxa
+include $(shell ocamlc -where)/Makefile.config
+
+OCAMLBUILD = ocamlbuild -use-ocamlfind -classic-display
+
+all:
+	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa
 
 clean:
-	ocamlbuild -use-ocamlfind -clean
+	$(OCAMLBUILD) -clean
 
 test: _build/lib_test/nacl_runner
-	ocamlbuild -use-ocamlfind lib_test/test_sodium.native --
+	CAML_LD_LIBRARY_PATH=_build/lib:$(CAML_LD_LIBRARY_PATH) \
+		$(OCAMLBUILD) lib_test/test_sodium.byte --
+	$(OCAMLBUILD) lib_test/test_sodium.native --
 
 install: all
 	ocamlfind install sodium lib/META \
-		$(addprefix _build/,lib/*.cmi lib/*.cma lib/*.cmxa lib/*.a lib/*.so)
+		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti sodium.cma sodium.cmxa \
+		                        sodium$(EXT_LIB) dllsodium_stubs$(EXT_DLL) libsodium_stubs$(EXT_LIB))
 
 uninstall:
 	ocamlfind remove sodium
@@ -17,10 +24,6 @@ uninstall:
 reinstall: uninstall install
 
 .PHONY: all clean test install uninstall reinstall
-
-_build/lib/dllsodium.so:
-	mkdir -p $$(dirname $@)
-	$(CC) -shared -lsodium -o $@
 
 _build/%: %.c
 	mkdir -p $$(dirname $@)

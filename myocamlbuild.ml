@@ -1,21 +1,46 @@
 open Ocamlbuild_plugin;;
+open Ocamlbuild_pack;;
 
 dispatch begin
   function
   | After_rules ->
-    (* flag ["compile"; "ocaml"] (A"-safe-string"); *)
 
-    flag ["link"; "library"; "ocaml"; "byte"; "use_sodium"]
-      (S[A"-dllib"; A("-lsodium"); A"-cclib"; A("-lsodium")]);
+    rule "cstubs: lib/x_bindings.ml -> x_stubs.c, x_stubs.ml"
+      ~prods:["lib/%_stubs.c"; "lib/%_generated.ml"]
+      ~deps: ["lib_gen/%_bindgen.byte"]
+      (fun env build ->
+        Cmd (A(env "lib_gen/%_bindgen.byte")));
 
-    flag ["link"; "library"; "ocaml"; "native"; "use_sodium"]
-      (S[A"-cclib"; A("-lsodium")]);
+    copy_rule "cstubs: lib_gen/x_bindings.ml -> lib/x_bindings.ml"
+      "lib_gen/%_bindings.ml" "lib/%_bindings.ml";
 
-    flag ["link"; "program"; "ocaml"; "byte"; "use_sodium"]
-      (S[A"-dllib"; A("dllsodium")]);
+    (* Linking cstubs *)
+    flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A"+.."];
+    flag ["c"; "compile"; "debug"] & A"-g";
 
-    flag ["link"; "program"; "ocaml"; "native"; "use_sodium"]
-      (S[A"-cclib"; A("-lsodium")]);
+    (* Linking sodium *)
+    flag ["c"; "compile"; "use_sodium"] &
+      S[A"-ccopt"; A"--std=c99 -Wall -pedantic -Werror -Wno-pointer-sign"];
+    flag ["c"; "ocamlmklib"; "use_sodium"] & A"-lsodium";
+
+    (* Linking generated stubs *)
+    dep ["ocaml"; "link"; "byte"; "library"; "use_sodium_stubs"]
+      ["lib/dllsodium_stubs"-.-(!Options.ext_dll)];
+    flag ["ocaml"; "link"; "byte"; "library"; "use_sodium_stubs"] &
+      S[A"-dllib"; A"-lsodium_stubs"];
+
+    dep ["ocaml"; "link"; "native"; "library"; "use_sodium_stubs"]
+      ["lib/libsodium_stubs"-.-(!Options.ext_lib)];
+    flag ["ocaml"; "link"; "native"; "library"; "use_sodium_stubs"] &
+      S[A"-cclib"; A"-lsodium_stubs"; A"-cclib"; A"-lsodium"];
+
+    (* Linking tests *)
+    flag ["ocaml"; "link"; "byte"; "program"; "use_sodium_stubs"] &
+      S[A"-dllib"; A"-lsodium_stubs"];
+    dep ["ocaml"; "link"; "native"; "program"; "use_sodium_stubs"]
+      ["lib/libsodium_stubs"-.-(!Options.ext_lib)];
+    flag ["ocaml"; "link"; "native"; "program"; "use_sodium_stubs"] &
+      S[A"-cclib"; A"-lsodium"];
 
   | _ -> ()
 end;;
