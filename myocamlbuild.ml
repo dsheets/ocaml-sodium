@@ -1,6 +1,8 @@
 open Ocamlbuild_plugin;;
 open Ocamlbuild_pack;;
 
+let libdir = Sys.getenv "OCAML_LIB_DIR" in
+
 dispatch begin
   function
   | After_rules ->
@@ -15,7 +17,7 @@ dispatch begin
       "lib_gen/%_bindings.ml" "lib/%_bindings.ml";
 
     (* Linking cstubs *)
-    flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A"+.."];
+    flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A libdir];
     flag ["c"; "compile"; "debug"] & A"-g";
 
     (* Linking sodium *)

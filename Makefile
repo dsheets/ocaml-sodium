@@ -3,7 +3,9 @@ CURRENT_DIR := $(dir $(MAKEFILE_PATH))
 
 include $(shell ocamlc -where)/Makefile.config
 
-OCAMLBUILD = ocamlbuild -use-ocamlfind -classic-display
+LIB_DIR=`ocamlfind query ctypes`/..
+
+OCAMLBUILD = OCAML_LIB_DIR=$(LIB_DIR) ocamlbuild -use-ocamlfind -classic-display
 
 all:
 	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa
