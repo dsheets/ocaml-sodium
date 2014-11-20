@@ -2,6 +2,7 @@ open Ocamlbuild_plugin;;
 open Ocamlbuild_pack;;
 
 let libdir = Sys.getenv "OCAML_LIB_DIR" in
+let is_freebsd = bool_of_string (Sys.getenv "IS_FREEBSD") in
 
 dispatch begin
   function
@@ -15,6 +16,12 @@ dispatch begin
 
     copy_rule "cstubs: lib_gen/x_bindings.ml -> lib/x_bindings.ml"
       "lib_gen/%_bindings.ml" "lib/%_bindings.ml";
+
+    if is_freebsd
+    then (
+      flag ["c"; "compile"] & S[A"-ccopt"; A"-I/usr/local/include"];
+      flag ["c"; "ocamlmklib"] & A"-L/usr/local/lib";
+    );
 
     (* Linking cstubs *)
     flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A libdir];

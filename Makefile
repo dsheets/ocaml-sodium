@@ -3,9 +3,14 @@ CURRENT_DIR := $(dir $(MAKEFILE_PATH))
 
 include $(shell ocamlc -where)/Makefile.config
 
-LIB_DIR=`ocamlfind query ctypes`/..
+LIB_DIR=$(shell ocamlfind query ctypes)/..
 
-OCAMLBUILD = OCAML_LIB_DIR=$(LIB_DIR) ocamlbuild -use-ocamlfind -classic-display
+ifndef IS_FREEBSD 
+IS_FREEBSD=false
+endif
+
+OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) \
+IS_FREEBSD=$(IS_FREEBSD) ocamlbuild -use-ocamlfind -classic-display
 
 all:
 	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa
@@ -18,7 +23,7 @@ test: _build/lib_test/nacl_runner
 		$(OCAMLBUILD) lib_test/test_sodium.byte --
 	$(OCAMLBUILD) lib_test/test_sodium.native --
 
-install: all
+install:
 	ocamlfind install sodium lib/META \
 		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti sodium.cma sodium.cmxa \
 		                        sodium$(EXT_LIB) dllsodium_stubs$(EXT_DLL) libsodium_stubs$(EXT_LIB))
