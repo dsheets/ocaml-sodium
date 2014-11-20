@@ -1,3 +1,6 @@
+MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+CURRENT_DIR := $(dir $(MAKEFILE_PATH))
+
 include $(shell ocamlc -where)/Makefile.config
 
 OCAMLBUILD = ocamlbuild -use-ocamlfind -classic-display
@@ -9,7 +12,7 @@ clean:
 	$(OCAMLBUILD) -clean
 
 test: _build/lib_test/nacl_runner
-	CAML_LD_LIBRARY_PATH=_build/lib:$(CAML_LD_LIBRARY_PATH) \
+	CAML_LD_LIBRARY_PATH=$(CURRENT_DIR)_build/lib:$(CAML_LD_LIBRARY_PATH) \
 		$(OCAMLBUILD) lib_test/test_sodium.byte --
 	$(OCAMLBUILD) lib_test/test_sodium.native --
 
