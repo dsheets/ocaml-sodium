@@ -2,7 +2,9 @@ open Ocamlbuild_plugin;;
 open Ocamlbuild_pack;;
 
 let libdir = Sys.getenv "OCAML_LIB_DIR" in
-let is_freebsd = bool_of_string (Sys.getenv "IS_FREEBSD") in
+let is_freebsd = try
+  bool_of_string (Sys.getenv "IS_FREEBSD")
+with _ -> false in
 
 dispatch begin
   function
@@ -21,6 +23,8 @@ dispatch begin
     then (
       flag ["c"; "compile"] & S[A"-ccopt"; A"-I/usr/local/include"];
       flag ["c"; "ocamlmklib"] & A"-L/usr/local/lib";
+      flag ["ocaml"; "link"; "native"; "program"] &
+        S[A"-cclib"; A"-L/usr/local/lib"];
     );
 
     (* Linking cstubs *)

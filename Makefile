@@ -5,10 +5,6 @@ include $(shell ocamlc -where)/Makefile.config
 
 LIB_DIR=$(shell ocamlfind query ctypes)/..
 
-ifndef IS_FREEBSD 
-IS_FREEBSD=false
-endif
-
 OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) \
 IS_FREEBSD=$(IS_FREEBSD) ocamlbuild -use-ocamlfind -classic-display
 
@@ -37,4 +33,8 @@ reinstall: uninstall install
 
 _build/%: %.c
 	mkdir -p $$(dirname $@)
+ifneq "$(IS_FREEBSD)" "true"
 	$(CC) -Wall -g -lsodium -o $@ $^
+else
+	$(CC) -Wall -g -I/usr/local/include -L/usr/local/lib -lsodium -o $@ $^
+endif
