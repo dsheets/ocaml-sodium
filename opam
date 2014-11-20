@@ -15,5 +15,5 @@ depends: [
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]
   [ ["ubuntu"] ["libsodium-dev"] ]
-  [ ["source" "linux"] ["https://gist.github.com/avsm/9037146/raw"] ]
+  [ ["osx" "homebrew"] ["libsodium"] ]
 ]
