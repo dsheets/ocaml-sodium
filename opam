@@ -16,5 +16,6 @@ depends: [
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]
   [ ["ubuntu"] ["libsodium-dev"] ]
+  [ ["freebsd"] ["security/libsodium"] ]
   [ ["osx" "homebrew"] ["libsodium"] ]
 ]
