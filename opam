@@ -19,3 +19,4 @@ depexts: [
   [ ["freebsd"] ["security/libsodium"] ]
   [ ["osx" "homebrew"] ["libsodium"] ]
 ]
+available: [ocaml-version >= "4.01.0"]
