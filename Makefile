@@ -5,8 +5,7 @@ include $(shell ocamlc -where)/Makefile.config
 
 LIB_DIR=$(shell ocamlfind query ctypes)/..
 
-OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) \
-IS_FREEBSD=$(IS_FREEBSD) ocamlbuild -use-ocamlfind -classic-display
+OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) ocamlbuild -use-ocamlfind -classic-display 
 
 all:
 	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa
