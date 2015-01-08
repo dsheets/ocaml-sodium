@@ -112,6 +112,17 @@ let test_sign_detached_fail_key ctxt =
   assert_raises Verification_failure
                 (fun () -> ignore (Sign.Bytes.verify pk' sign msg))
 
+let test_box_keypair ctxt =
+  let (sk, pk), msg = setup () in
+  let (sk', pk'), _ = setup () in
+  let (bsk, bpk) = Sign.box_keypair (sk, pk) in
+  let bsk' = Sign.box_secret_key sk' in
+  let bpk' = Sign.box_public_key pk' in
+  let nonce = Box.random_nonce () in
+  let cmsg = Box.Bytes.box bsk bpk' msg nonce in
+  let msg' = Box.Bytes.box_open bsk' bpk cmsg nonce in
+  assert_equal msg msg'
+
 let suite = "Sign" >::: [
     "test_equal_public_keys"   >:: test_equal_public_keys;
     "test_equal_secret_keys"   >:: test_equal_secret_keys;
@@ -124,4 +135,5 @@ let suite = "Sign" >::: [
     "test_sign_detached_fail_permute" >:: test_sign_detached_fail_permute;
     "test_sign_detached_fail_permute_msg" >:: test_sign_detached_fail_permute_msg;
     "test_sign_detached_fail_key" >:: test_sign_detached_fail_key;
+    "test_box_keypair" >:: test_box_keypair;
   ]

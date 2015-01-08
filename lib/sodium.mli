@@ -264,6 +264,15 @@ module Sign : sig
   (** [compare_public_keys a b] compares [a] and [b]. *)
   val compare_public_keys : public key -> public key -> int
 
+  (** [box_keypair kp] is the {!Box.keypair} extracted from [kp]. *)
+  val box_keypair : keypair -> Box.keypair
+
+  (** [box_public_key k] is the {!Box.public_key} extracted from [k]. *)
+  val box_public_key : public key -> Box.public_key
+
+  (** [box_secret_key k] is the {!Box.secret_key} extracted from [k]. *)
+  val box_secret_key : secret key -> Box.secret_key
+
   module type S = sig
     type storage
 
