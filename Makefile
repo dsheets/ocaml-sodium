@@ -3,7 +3,7 @@ CURRENT_DIR := $(dir $(MAKEFILE_PATH))
 
 include $(shell ocamlc -where)/Makefile.config
 
-LIB_DIR=$(shell ocamlfind query ctypes)/..
+LIB_DIR=$(shell ocamlfind query ctypes)
 
 OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) ocamlbuild -use-ocamlfind -classic-display 
 
