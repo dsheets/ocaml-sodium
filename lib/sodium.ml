@@ -278,6 +278,30 @@ module Sign = struct
   let equal_secret_keys = Verify.equal_fn secret_key_size
   let compare_public_keys = Bytes.compare
 
+  let box_keypair (sk, pk) =
+    let pk' = Bytes.create Box.public_key_size in
+    let sk' = Bytes.create Box.secret_key_size in
+    let ret = C.pk_to_curve25519
+        (Storage.Bytes.to_ptr pk') (Storage.Bytes.to_ptr pk) in
+    let ret' = C.sk_to_curve25519
+        (Storage.Bytes.to_ptr sk') (Storage.Bytes.to_ptr sk) in
+    assert (ret = 0 && ret' = 0);
+    (sk', pk')
+
+  let box_public_key pk =
+    let pk' = Bytes.create Box.public_key_size in
+    let ret = C.pk_to_curve25519
+        (Storage.Bytes.to_ptr pk') (Storage.Bytes.to_ptr pk) in
+    assert (ret = 0);
+    pk'
+
+  let box_secret_key sk =
+    let sk' = Bytes.create Box.secret_key_size in
+    let ret = C.sk_to_curve25519
+        (Storage.Bytes.to_ptr sk') (Storage.Bytes.to_ptr sk) in
+    assert (ret = 0);
+    sk'
+
   module type S = sig
     type storage
 

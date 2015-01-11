@@ -69,6 +69,10 @@ module C(F: Cstubs.FOREIGN) = struct
     let sign_keypair    = F.foreign (prefix^"_keypair")
                                     (ocaml_bytes @-> ocaml_bytes @-> returning int)
 
+    let to_curve_25519_type = (ocaml_bytes @-> ocaml_bytes @-> returning int)
+    let pk_to_curve25519 = F.foreign (prefix^"_pk_to_curve25519") to_curve_25519_type
+    let sk_to_curve25519 = F.foreign (prefix^"_sk_to_curve25519") to_curve_25519_type
+
     module Make(T: Sodium_storage.S) = struct
       let sign_fn_type    = (T.ctype @-> ptr ullong @-> T.ctype
                              @-> ullong @-> ocaml_bytes @-> returning int)
