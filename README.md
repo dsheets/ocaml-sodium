@@ -1,7 +1,7 @@
 # ocaml-sodium
 
 [Ctypes](https://github.com/ocamllabs/ocaml-ctypes) bindings to
-[libsodium 0.6.1+](https://github.com/jedisct1/libsodium) which wraps
+[libsodium 0.7.0+](https://github.com/jedisct1/libsodium) which wraps
 [NaCl](http://nacl.cr.yp.to/). GNU/Linux, FreeBSD, and OS X operating
 systems are supported. OCaml 4.01.0 or later is required to build.
 

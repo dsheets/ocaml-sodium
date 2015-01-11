@@ -1,3 +1,9 @@
+0.4.0 (trunk):
+* Now requires libsodium 0.7.0+, latest libsodium is 1.0.1
+* Now requires ctypes 0.4.0
+* ed25519 keys can be converted to curve25519 keys with `Sign.box_public_key`,
+  `Sign.box_secret_key`, and `Sign.box_keypair`.
+
 0.3.0 (2014-11-20):
 * Now requires libsodium 0.6.1+, latest libsodium is 1.0.0
 * Dynamic binding replaced with faster and safer cstubs generation (#8)
