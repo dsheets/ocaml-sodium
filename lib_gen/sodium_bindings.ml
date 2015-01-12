@@ -65,13 +65,27 @@ module C(F: Cstubs.FOREIGN) = struct
     let publickeybytes  = F.foreign (prefix^"_publickeybytes") sz_query_type
     let secretkeybytes  = F.foreign (prefix^"_secretkeybytes") sz_query_type
     let bytes           = F.foreign (prefix^"_bytes")          sz_query_type
+    let seedbytes       = F.foreign (prefix^"_seedbytes")      sz_query_type
 
     let sign_keypair    = F.foreign (prefix^"_keypair")
-                                    (ocaml_bytes @-> ocaml_bytes @-> returning int)
+                                    (ocaml_bytes @-> ocaml_bytes
+                                     @-> returning int)
+    let sign_seed_keypair = F.foreign (prefix^"_seed_keypair")
+                                      (ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
+                                       @-> returning int)
+
+    let sign_sk_to_seed = F.foreign (prefix^"_sk_to_seed")
+                                    (ocaml_bytes @-> ocaml_bytes
+                                     @-> returning int)
+    let sign_sk_to_pk   = F.foreign (prefix^"_sk_to_pk")
+                                    (ocaml_bytes @-> ocaml_bytes
+                                     @-> returning int)
 
     let to_curve_25519_type = (ocaml_bytes @-> ocaml_bytes @-> returning int)
-    let pk_to_curve25519 = F.foreign (prefix^"_pk_to_curve25519") to_curve_25519_type
-    let sk_to_curve25519 = F.foreign (prefix^"_sk_to_curve25519") to_curve_25519_type
+    let sign_pk_to_curve25519 = F.foreign (prefix^"_pk_to_curve25519")
+      to_curve_25519_type
+    let sign_sk_to_curve25519 = F.foreign (prefix^"_sk_to_curve25519")
+      to_curve_25519_type
 
     module Make(T: Sodium_storage.S) = struct
       let sign_fn_type    = (T.ctype @-> ptr ullong @-> T.ctype
@@ -88,7 +102,7 @@ module C(F: Cstubs.FOREIGN) = struct
       let verify_type     = (ocaml_bytes @-> T.ctype @-> ullong
                              @-> ocaml_bytes @-> returning int)
 
-      let verify          = F.foreign (prefix^"_verify_detached") verify_type
+      let sign_verify     = F.foreign (prefix^"_verify_detached") verify_type
     end
   end
 

@@ -234,6 +234,7 @@ module Sign : sig
   type public_key = public key
   type keypair = secret key * public key
   type signature
+  type seed
 
   (** Primitive used by this implementation. Currently ["ed25519"]. *)
   val primitive           : string
@@ -247,8 +248,21 @@ module Sign : sig
   (** Size of signatures, in bytes. *)
   val signature_size      : int
 
+  (** Size of signing key seeds, in bytes. *)
+  val seed_size           : int
+
   (** [random_keypair ()] generates a random key pair. *)
   val random_keypair      : unit -> keypair
+
+  (** [seed_keypair seed] generates a key pair from secret [seed]. *)
+  val seed_keypair        : seed -> keypair
+
+  (** [secret_key_to_seed sk] extracts the secret key [sk]'s {!seed}. *)
+  val secret_key_to_seed  : secret key -> seed
+
+  (** [secret_key_to_public_key sk] extract the secret key [sk]'s
+      {!public_key}. *)
+  val secret_key_to_public_key : secret key -> public key
 
   (** [wipe_key k] overwrites [k] with zeroes. *)
   val wipe_key            : 'a key -> unit
@@ -299,6 +313,14 @@ module Sign : sig
     (** [to_signature s] converts [s] to a signature.
         If [s] is not [signature_size] long, [Size_mismatch] is raised. *)
     val to_signature    : storage -> signature
+
+    (** [of_seed s] converts [s] to type {!storage}. The result is
+        {!seed_size} bytes long. *)
+    val of_seed         : seed -> storage
+
+    (** [to_seed s] converts [s] to a seed.
+        If [s] is not {!seed_size} long, {!Size_mismatch} is raised. *)
+    val to_seed         : storage -> seed
 
     (** [sign sk m] signs a message [m] using the signer's secret key [sk],
         and returns the resulting signed message. *)

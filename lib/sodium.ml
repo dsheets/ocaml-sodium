@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
  * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -254,6 +254,7 @@ module Sign = struct
   let secret_key_size  = Size_t.to_int (C.secretkeybytes ())
   let reserved_size    = Size_t.to_int (C.bytes ())
   let signature_size   = Size_t.to_int (C.bytes ())
+  let seed_size        = Size_t.to_int (C.seedbytes ())
 
   (* Invariant: a key is {public,secret}_key_size bytes long. *)
   type 'a key = Bytes.t
@@ -264,6 +265,9 @@ module Sign = struct
   (* Invariant: an auth is signature_size bytes long. *)
   type signature = Bytes.t
 
+  (* Invariant: a seed is seed_size bytes long. *)
+  type seed = Bytes.t
+
   let random_keypair () =
     let pk, sk = Storage.Bytes.create public_key_size,
                  Storage.Bytes.create secret_key_size in
@@ -271,6 +275,29 @@ module Sign = struct
       C.sign_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
     assert (ret = 0); (* always returns 0 *)
     sk, pk
+
+  let seed_keypair seed =
+    let pk, sk = Storage.Bytes.create public_key_size,
+                 Storage.Bytes.create secret_key_size in
+    let ret =
+      C.sign_seed_keypair (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk)
+                          (Storage.Bytes.to_ptr seed) in
+    assert (ret = 0);
+    sk, pk
+
+  let secret_key_to_seed sk =
+    let seed = Storage.Bytes.create seed_size in
+    let ret =
+      C.sign_sk_to_seed (Storage.Bytes.to_ptr seed) (Storage.Bytes.to_ptr sk) in
+    assert (ret = 0);
+    seed
+
+  let secret_key_to_public_key sk =
+    let pk = Storage.Bytes.create public_key_size in
+    let ret =
+      C.sign_sk_to_pk (Storage.Bytes.to_ptr pk) (Storage.Bytes.to_ptr sk) in
+    assert (ret = 0);
+    pk
 
   let wipe_key = wipe
 
@@ -280,14 +307,14 @@ module Sign = struct
 
   let box_public_key pk =
     let pk' = Bytes.create Box.public_key_size in
-    let ret = C.pk_to_curve25519
+    let ret = C.sign_pk_to_curve25519
         (Storage.Bytes.to_ptr pk') (Storage.Bytes.to_ptr pk) in
     assert (ret = 0);
     pk'
 
   let box_secret_key sk =
     let sk' = Bytes.create Box.secret_key_size in
-    let ret = C.sk_to_curve25519
+    let ret = C.sign_sk_to_curve25519
         (Storage.Bytes.to_ptr sk') (Storage.Bytes.to_ptr sk) in
     assert (ret = 0);
     sk'
@@ -305,6 +332,9 @@ module Sign = struct
 
     val of_signature    : signature -> storage
     val to_signature    : storage -> signature
+
+    val of_seed         : seed -> storage
+    val to_seed         : storage -> seed
 
     val sign            : secret key -> storage -> storage
     val sign_open       : public key -> storage -> storage
@@ -341,6 +371,13 @@ module Sign = struct
       verify_length str signature_size "Sign.to_signature";
       T.to_bytes str
 
+    let of_seed seed =
+      T.of_bytes seed
+
+    let to_seed str =
+      verify_length str seed_size "Sign.to_seed";
+      T.to_bytes str
+
     let sign skey message =
       let signed_msg = T.create ((T.length message) + reserved_size) in
       let signed_len = allocate ullong (Unsigned.ULLong.of_int 0) in
@@ -368,7 +405,7 @@ module Sign = struct
       T.to_bytes signature
 
     let verify pkey (signature:signature) message =
-      let ret = C.verify (Storage.Bytes.to_ptr signature) (T.to_ptr message)
+      let ret = C.sign_verify (Storage.Bytes.to_ptr signature) (T.to_ptr message)
                          (T.len_ullong message) (Storage.Bytes.to_ptr pkey) in
       if ret <> 0 then raise Verification_failure
   end

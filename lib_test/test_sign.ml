@@ -61,8 +61,11 @@ let test_permute ctxt =
   assert_raises (Size_mismatch "Sign.to_secret_key")
                 (fun () -> (Sign.Bytes.to_secret_key (add_byte (Sign.Bytes.of_secret_key sk))))
 
+let secret_message =
+  Bytes.of_string "The cock flies with a mistaken DMCA takedown notice."
+
 let setup () =
-  Sign.random_keypair (), Bytes.of_string "fuwa-fuwa-fuwa"
+  Sign.random_keypair (), secret_message
 
 let test_sign ctxt =
   let (sk, pk), msg = setup () in
@@ -123,6 +126,20 @@ let test_box_keypair ctxt =
   let msg' = Box.Bytes.box_open bsk' bpk cmsg nonce in
   assert_equal msg msg'
 
+let test_sign_seed ctxt =
+  let seed_str = Random.Bytes.generate Sign.seed_size in
+  let seed = Sign.Bytes.to_seed seed_str in
+  let (sk, pk) = Sign.seed_keypair seed in
+  (* In actual use, we would probably zero both seed values here. *)
+  let smsg = Sign.Bytes.sign sk secret_message in
+  let msg' = Sign.Bytes.sign_open pk smsg in
+  assert_equal secret_message msg';
+  let seed' = Sign.secret_key_to_seed sk in
+  let seed_str' = Sign.Bytes.of_seed seed' in
+  assert_equal seed_str seed_str';
+  let pk' = Sign.secret_key_to_public_key sk in
+  assert_bool "=" (Sign.equal_public_keys pk pk')
+
 let suite = "Sign" >::: [
     "test_equal_public_keys"   >:: test_equal_public_keys;
     "test_equal_secret_keys"   >:: test_equal_secret_keys;
@@ -135,5 +152,6 @@ let suite = "Sign" >::: [
     "test_sign_detached_fail_permute" >:: test_sign_detached_fail_permute;
     "test_sign_detached_fail_permute_msg" >:: test_sign_detached_fail_permute_msg;
     "test_sign_detached_fail_key" >:: test_sign_detached_fail_key;
-    "test_box_keypair" >:: test_box_keypair;
+    "test_box_keypair"         >:: test_box_keypair;
+    "test_sign_seed"           >:: test_sign_seed;
   ]
