@@ -5,15 +5,19 @@ maintainer: "sheets@alum.mit.edu"
 tags: ["org:mirage"]
 build: [
   [make] { os != "freebsd" }
-  ["env" "IS_FREEBSD=true" make] { os = "freebsd" }
+  [make "CFLAGS=-I/usr/local/include -L/usr/local/lib"] { os = "freebsd" }
   [make "PREFIX=%{prefix}%" "install"]
+]
+build-test: [
+  [make "test"] { os != "freebsd" }
+  [make "CFLAGS=-I/usr/local/include -L/usr/local/lib" "test"] { os = "freebsd" }
 ]
 remove: [["ocamlfind" "remove" "sodium"]]
 depends: [
   "base-bigarray"
   "base-bytes"
   "ocamlfind"
-  "ctypes" {>= "0.3.2"}
+  "ctypes" {>= "0.4.0"}
 ]
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]

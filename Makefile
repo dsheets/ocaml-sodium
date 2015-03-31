@@ -20,8 +20,11 @@ test: _build/lib_test/nacl_runner
 
 install:
 	ocamlfind install sodium lib/META \
-		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti sodium.cma sodium.cmxa \
-		                        sodium$(EXT_LIB) dllsodium_stubs$(EXT_DLL) libsodium_stubs$(EXT_LIB))
+		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti
+					sodium.cma sodium.cmxa \
+		                        sodium$(EXT_LIB)
+					dllsodium_stubs$(EXT_DLL)
+					libsodium_stubs$(EXT_LIB))
 
 uninstall:
 	ocamlfind remove sodium
@@ -32,8 +35,4 @@ reinstall: uninstall install
 
 _build/%: %.c
 	mkdir -p $$(dirname $@)
-ifneq "$(IS_FREEBSD)" "true"
-	$(CC) -Wall -g -lsodium -o $@ $^
-else
-	$(CC) -Wall -g -I/usr/local/include -L/usr/local/lib -lsodium -o $@ $^
-endif
+	$(CC) -Wall -g $(CFLAGS) -lsodium -o $@ $^
