@@ -8,6 +8,10 @@ build: [
   [make "CFLAGS=-I/usr/local/include -L/usr/local/lib"] { os = "freebsd" }
   [make "PREFIX=%{prefix}%" "install"]
 ]
+build-test: [
+  [make "test"] { os != "freebsd" }
+  [make "CFLAGS=-I/usr/local/include -L/usr/local/lib" "test"] { os = "freebsd" }
+]
 remove: [["ocamlfind" "remove" "sodium"]]
 depends: [
   "base-bigarray"
