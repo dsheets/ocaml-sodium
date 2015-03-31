@@ -5,7 +5,7 @@ maintainer: "sheets@alum.mit.edu"
 tags: ["org:mirage"]
 build: [
   [make] { os != "freebsd" }
-  ["env" "IS_FREEBSD=true" make] { os = "freebsd" }
+  [make "CFLAGS=-I/usr/local/include -L/usr/local/lib"] { os = "freebsd" }
   [make "PREFIX=%{prefix}%" "install"]
 ]
 remove: [["ocamlfind" "remove" "sodium"]]
