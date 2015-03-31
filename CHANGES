@@ -1,4 +1,4 @@
-0.4.0 (trunk):
+0.4.0 (2015-03-31):
 * Now requires libsodium 0.7.0+, latest libsodium is 1.0.1
 * Now requires ctypes 0.4.0
 * New ed25519 key to curve25519 key convertors `Sign.box_public_key`,
