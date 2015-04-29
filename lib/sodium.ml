@@ -808,5 +808,67 @@ module Hash = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
+module Generichash = struct
+  module C = C.Generichash
+  let primitive = C.primitive
+
+  type 'a key = Bytes.t
+  type secret_key = secret key
+
+  (* Invariant: a hash is size bytes long. *)
+  type generichash = Bytes.t
+
+  module type S = sig
+    type storage
+
+    val of_hash : generichash -> storage
+    val to_hash : storage -> generichash
+
+    val of_key  : secret key -> storage
+    val to_key  : storage -> secret key
+
+    val digest  : int -> storage -> generichash
+    val digest_key : int -> storage -> secret key -> generichash
+
+  end
+
+  module Make(T: Storage.S) = struct
+    module C = C.Make(T)
+    type storage = T.t
+
+    let of_hash str =
+      T.of_bytes str
+
+    let to_hash str =
+      if 0 = T.length str then
+        raise (Size_mismatch "Hash.to_hash");
+      T.to_bytes str
+
+    let of_key str =
+      T.of_bytes str
+
+    let to_key str =
+      if 0 = T.length str then
+        raise (Size_mismatch "Hash.to_key");
+      T.to_bytes str
+
+    let digest_key size str (key : secret key) =
+      let hash = Storage.Bytes.create size in
+      let ret = C.hash
+        (Storage.Bytes.to_ptr hash) (Size_t.of_int size)
+        (T.to_ptr str) (T.len_ullong str)
+        (Storage.Bytes.to_ptr key) (T.len_size_t (of_key key))
+      in
+      assert (ret = 0); (* always returns 0 *)
+      hash
+
+    let digest size str =
+      digest_key size str (Storage.Bytes.create 0)
+  end
+
+  module Bytes = Make(Storage.Bytes)
+  module Bigbytes = Make(Storage.Bigbytes)
+end
+
 let () =
   C.init ()

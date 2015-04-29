@@ -576,3 +576,40 @@ module Hash : sig
   module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
+
+module Generichash : sig
+  type generichash
+  type 'a key
+  type secret_key = secret key
+
+  (** Primitive used by this implementation. Currently ["blake2b"]. *)
+  val primitive : string
+
+  module type S = sig
+    type storage
+
+    (** [of_hash h] converts [h] to type [storage]. The result
+        is [size] bytes long. *)
+    val of_hash : generichash -> storage
+
+    (** [to_hash s] converts [s] to a hash.
+        If [s] is not [size] long, [Invalid_argument] is raised. *)
+    val to_hash : storage -> generichash
+
+    (** [of_key k] converts [k] to type [storage]. *)
+    val of_key  : secret key -> storage
+
+    (** [to_key s] converts [s] to a secret key.
+        If [s] is 0 bytes long, [Size_mismatch] is raised. *)
+    val to_key  : storage -> secret key
+
+    (** [digest len m] computes a hash for message [m] of bytelength [l]. *)
+    val digest     : int -> storage -> generichash
+    (** [digest_key len m key] computes a keyed hash for message [m] of bytelength [l]. *)
+    val digest_key : int -> storage -> secret key -> generichash
+
+  end
+
+  module Bytes : S with type storage = Bytes.t
+  module Bigbytes : S with type storage = bigbytes
+end

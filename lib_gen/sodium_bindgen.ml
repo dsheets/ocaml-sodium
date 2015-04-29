@@ -13,6 +13,7 @@ module Bind(F: Cstubs.FOREIGN) = struct
   module Secret_box' = BindStorage(Secret_box.Make)
   module Stream' = BindStorage(Stream.Make)
   module Hash' = BindStorage(Hash.Make)
+  module Generichash' = BindStorage(Generichash.Make)
 
   module Auth = Gen_auth(struct
     let scope     = "auth"
