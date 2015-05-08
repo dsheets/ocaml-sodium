@@ -337,7 +337,7 @@ module Sign : sig
     val sign_detached   : secret key -> storage -> signature
 
     (** [verify pk s m] checks that [s] is a correct signature of a message
-        [m] under the public key [pk]. If it is not, [Verification_failed]
+        [m] under the public key [pk]. If it is not, [Verification_failure]
         is raised. *)
     val verify          : public key -> signature -> storage -> unit
   end
@@ -531,7 +531,7 @@ module Auth : sig
 
     (** [verify k a m] checks that [a] is a correct authenticator
         of a message [m] under the secret key [k]. If it is not,
-        [Verification_failed] is raised. *)
+        [Verification_failure] is raised. *)
     val verify  : secret key -> auth -> storage -> unit
   end
 
