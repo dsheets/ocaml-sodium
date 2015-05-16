@@ -195,15 +195,24 @@ module C(F: Cstubs.FOREIGN) = struct
     let primitive = "blake2b"
     let prefix    = "crypto_generichash_"^primitive
     let sz_query_type = void @-> returning size_t
+
     let hashbytes     = F.foreign (prefix^"_bytes") sz_query_type
+    let hashbytesmin  = F.foreign (prefix^"_bytes_min") sz_query_type
+    let hashbytesmax  = F.foreign (prefix^"_bytes_max") sz_query_type
+
+    let keybytes      = F.foreign (prefix^"_keybytes") sz_query_type
+    let keybytesmin   = F.foreign (prefix^"_keybytes_min") sz_query_type
+    let keybytesmax   = F.foreign (prefix^"_keybytes_max") sz_query_type
 
     module Make(T: Sodium_storage.S) = struct
       let hash          = F.foreign (prefix)
                           (
-                              (*** uchar * out, size_t out_len,    uchar * in,  unsigned long long in_len, *)
-                             ocaml_bytes   @->  size_t         @-> T.ctype @->  ullong
-                              (***  uchar * key,   size_t keylen *)
-                             @-> ocaml_bytes @->   size_t
+                              ocaml_bytes  (*  uchar * out    *)
+                          @-> size_t       (*  size_t out_len *)
+                          @-> T.ctype      (*  uchar * in     *)
+                          @-> ullong       (*  unsigned long long in_len *)
+                          @-> ocaml_bytes  (*  uchar * key    *)
+                          @-> size_t       (*  size_t keylen  *)
                           @-> returning int)
     end
   end

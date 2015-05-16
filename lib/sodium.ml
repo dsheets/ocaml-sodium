@@ -815,7 +815,19 @@ module Generichash = struct
   type 'a key = Bytes.t
   type secret_key = secret key
 
-  (* Invariant: a hash is size bytes long. *)
+  let wipe_key = wipe
+
+  let size_default = Size_t.to_int (C.hashbytes ())
+  let size_min     = Size_t.to_int (C.hashbytesmin ())
+  let size_max     = Size_t.to_int (C.hashbytesmax ())
+
+  let key_size_default  = Size_t.to_int (C.keybytes ())
+  let key_size_min      = Size_t.to_int (C.keybytesmin ())
+  let key_size_max      = Size_t.to_int (C.keybytesmax ())
+
+  let random_key () =
+    Random.Bytes.generate key_size_default
+
   type generichash = Bytes.t
 
   module type S = sig
@@ -840,19 +852,23 @@ module Generichash = struct
       T.of_bytes str
 
     let to_hash str =
-      if 0 = T.length str then
-        raise (Size_mismatch "Hash.to_hash");
+      let len = T.length str in
+      if len < size_min || len > size_max then
+        raise (Size_mismatch "Generichash.to_hash");
       T.to_bytes str
 
     let of_key str =
       T.of_bytes str
 
     let to_key str =
-      if 0 = T.length str then
-        raise (Size_mismatch "Hash.to_key");
+      let len = T.length str in
+      if len < key_size_min || len > key_size_max then
+        raise (Size_mismatch "Generichash.to_key");
       T.to_bytes str
 
     let digest_key size str (key : secret key) =
+      if size < size_min || size > size_max then
+        raise (Size_mismatch "Generichash.digest(_key?): digest size") ;
       let hash = Storage.Bytes.create size in
       let ret = C.hash
         (Storage.Bytes.to_ptr hash) (Size_t.of_int size)

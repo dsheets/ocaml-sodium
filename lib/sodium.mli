@@ -585,6 +585,26 @@ module Generichash : sig
   (** Primitive used by this implementation. Currently ["blake2b"]. *)
   val primitive : string
 
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key  : secret key -> unit
+
+  (* Default recommended output size, in bytes *)
+  val size_default : int
+  (* Minimum supported output size, in bytes *)
+  val size_min : int
+  (* Maximum supported output size, in bytes *)
+  val size_max : int
+
+  (* Default recommended key size, in bytes *)
+  val key_size_default : int
+  (* Minimum supported key size, in bytes *)
+  val key_size_min     : int
+  (* Maximum supported key size, in bytes *)
+  val key_size_max     : int
+
+  (** [random_key ()] generates a random secret key of `key_size_default` bytes *)
+  val random_key      : unit -> secret key
+
   module type S = sig
     type storage
 
