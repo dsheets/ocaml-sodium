@@ -817,30 +817,34 @@ module Generichash = struct
 
   let wipe_key = wipe
 
-  let size_default = Size_t.to_int (C.hashbytes ())
-  let size_min     = Size_t.to_int (C.hashbytesmin ())
-  let size_max     = Size_t.to_int (C.hashbytesmax ())
+  let size_default   = Size_t.to_int (C.hashbytes ())
+  let size_min       = Size_t.to_int (C.hashbytesmin ())
+  let size_max       = Size_t.to_int (C.hashbytesmax ())
+  let size_of_hash h = Bytes.length h
 
-  let key_size_default  = Size_t.to_int (C.keybytes ())
-  let key_size_min      = Size_t.to_int (C.keybytesmin ())
-  let key_size_max      = Size_t.to_int (C.keybytesmax ())
+  let compare = Bytes.compare
+
+  let key_size_default = Size_t.to_int (C.keybytes ())
+  let key_size_min     = Size_t.to_int (C.keybytesmin ())
+  let key_size_max     = Size_t.to_int (C.keybytesmax ())
+  let size_of_key k    = Bytes.length k
 
   let random_key () =
     Random.Bytes.generate key_size_default
 
-  type generichash = Bytes.t
+  type hash = Bytes.t
 
   module type S = sig
     type storage
 
-    val of_hash : generichash -> storage
-    val to_hash : storage -> generichash
+    val of_hash : hash -> storage
+    val to_hash : storage -> hash
 
     val of_key  : secret key -> storage
     val to_key  : storage -> secret key
 
-    val digest  : int -> storage -> generichash
-    val digest_key : int -> storage -> secret key -> generichash
+    val digest          : ?size:int -> storage -> hash
+    val digest_with_key : secret key -> ?size:int -> storage -> hash
 
   end
 
@@ -866,20 +870,29 @@ module Generichash = struct
         raise (Size_mismatch "Generichash.to_key");
       T.to_bytes str
 
-    let digest_key size str (key : secret key) =
-      if size < size_min || size > size_max then
-        raise (Size_mismatch "Generichash.digest(_key?): digest size") ;
+    let digest_internal size key str =
       let hash = Storage.Bytes.create size in
       let ret = C.hash
         (Storage.Bytes.to_ptr hash) (Size_t.of_int size)
         (T.to_ptr str) (T.len_ullong str)
-        (Storage.Bytes.to_ptr key) (T.len_size_t (of_key key))
+        (Storage.Bytes.to_ptr key) (Size_t.of_int (size_of_key key))
       in
       assert (ret = 0); (* always returns 0 *)
       hash
 
-    let digest size str =
-      digest_key size str (Storage.Bytes.create 0)
+    let digest_with_key key ?(size=size_default) str =
+      if size < size_min || size > size_max then
+        raise (Size_mismatch "Generichash.digest_with_key");
+      digest_internal size key str
+
+    let digest ?(size=size_default) str =
+      if size < size_min || size > size_max then
+        raise (Size_mismatch "Generichash.digest");
+      (* TODO: The key should be NULL here but we can't represent that
+         with ctypes yet without giving up zero-copy passing.
+         See <https://github.com/ocamllabs/ocaml-ctypes/issues/316>.
+      *)
+      digest_internal size (Bytes.create 0) str
   end
 
   module Bytes = Make(Storage.Bytes)

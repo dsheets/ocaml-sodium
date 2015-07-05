@@ -578,55 +578,79 @@ module Hash : sig
 end
 
 module Generichash : sig
-  type generichash
+  type hash
   type 'a key
   type secret_key = secret key
 
   (** Primitive used by this implementation. Currently ["blake2b"]. *)
-  val primitive : string
+  val primitive        : string
 
   (** [wipe_key k] overwrites [k] with zeroes. *)
-  val wipe_key  : secret key -> unit
+  val wipe_key         : secret key -> unit
 
-  (* Default recommended output size, in bytes *)
-  val size_default : int
-  (* Minimum supported output size, in bytes *)
-  val size_min : int
-  (* Maximum supported output size, in bytes *)
-  val size_max : int
+  (** Default recommended output size, in bytes. *)
+  val size_default     : int
 
-  (* Default recommended key size, in bytes *)
+  (** Minimum supported output size, in bytes. *)
+  val size_min         : int
+
+  (** Maximum supported output size, in bytes. *)
+  val size_max         : int
+
+  (** [size_of_hash hash] is the size, in bytes, of the {!hash} [hash]. *)
+  val size_of_hash     : hash -> int
+
+  (** [compare h h'] is 0 if [h] and [h'] are equal, a negative
+      integer if [h] is less than [h'], and a positive integer if [h]
+      is greater than [h']. [compare] {i is not constant time}. *)
+  val compare          : hash -> hash -> int
+
+  (** Default recommended key size, in bytes. *)
   val key_size_default : int
-  (* Minimum supported key size, in bytes *)
+
+  (** Minimum supported key size, in bytes. *)
   val key_size_min     : int
-  (* Maximum supported key size, in bytes *)
+
+  (** Maximum supported key size, in bytes. *)
   val key_size_max     : int
 
-  (** [random_key ()] generates a random secret key of `key_size_default` bytes *)
-  val random_key      : unit -> secret key
+  (** [size_of_key key] is the size, in bytes, of the {!key} [key]. *)
+  val size_of_key      : secret key -> int
+
+  (** [random_key ()] generates a random secret key of
+      {!key_size_default} bytes. *)
+  val random_key       : unit -> secret key
 
   module type S = sig
     type storage
 
-    (** [of_hash h] converts [h] to type [storage]. The result
-        is [size] bytes long. *)
-    val of_hash : generichash -> storage
+    (** [of_hash h] converts [h] to type {!storage}. The result
+        is [size_of_hash h] bytes long. *)
+    val of_hash    : hash -> storage
 
     (** [to_hash s] converts [s] to a hash.
-        If [s] is not [size] long, [Invalid_argument] is raised. *)
-    val to_hash : storage -> generichash
 
-    (** [of_key k] converts [k] to type [storage]. *)
-    val of_key  : secret key -> storage
+        If [s] is not less than or equal to {!size_max} or greater
+        than or equal to {!size_min} bytes long, {!Invalid_argument} is
+        raised. *)
+    val to_hash    : storage -> hash
 
-    (** [to_key s] converts [s] to a secret key.
-        If [s] is 0 bytes long, [Size_mismatch] is raised. *)
-    val to_key  : storage -> secret key
+    (** [of_key k] converts key [k] to type {!storage}. The result is
+        [size_of_key k] bytes long. *)
+    val of_key     : secret key -> storage
 
-    (** [digest len m] computes a hash for message [m] of bytelength [l]. *)
-    val digest     : int -> storage -> generichash
-    (** [digest_key len m key] computes a keyed hash for message [m] of bytelength [l]. *)
-    val digest_key : int -> storage -> secret key -> generichash
+    (** [to_key s] converts [s] to a {!secret} {!key}.  If [s] is not
+        less than or equal to {!key_size_max} or greater than or equal to
+        {!key_size_min} bytes long, {!Size_mismatch} is raised. *)
+    val to_key     : storage -> secret key
+
+    (** [digest ?size m] computes a hash of size [size] (default
+        {!size_default}) for message [m]. *)
+    val digest     : ?size:int -> storage -> hash
+
+    (** [digest_with_key key m] computes a hash of size [size]
+        (default {!size_default} keyed by [key] for message [m]. *)
+    val digest_with_key : secret key -> ?size:int -> storage -> hash
 
   end
 
