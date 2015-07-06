@@ -84,11 +84,52 @@ let test_exn ctxt =
     (fun () -> Generichash.Bytes.to_key too_small);
   let too_big = Bytes.create (Generichash.key_size_max + 1) in
   assert_raises (Size_mismatch "Generichash.to_key")
-    (fun () -> Generichash.Bytes.to_key too_big)
+    (fun () -> Generichash.Bytes.to_key too_big);
+  assert_raises (Size_mismatch "Generichash.init")
+    (fun () -> Generichash.(init ~size:(size_min - 1) ()));
+  assert_raises (Size_mismatch "Generichash.init")
+    (fun () -> Generichash.(init ~size:(size_max + 1) ()))
+
+let test_streaming ctxt =
+  let empty = Bytes.of_string "" in
+
+  let direct_hash = Generichash.Bytes.digest empty in
+  let state = Generichash.init () in
+  let staged_hash = Generichash.final state in
+  assert_bool "simple staged" (0 = Generichash.compare direct_hash staged_hash);
+
+  let key = Generichash.Bytes.to_key (Bytes.of_string "SUPER SECRET KEY") in
+  let direct_hash = Generichash.Bytes.digest_with_key key empty in
+  let state = Generichash.init ~key () in
+  let staged_hash = Generichash.final state in
+  assert_bool "keyed staged" (0 = Generichash.compare direct_hash staged_hash);
+
+  let staged_hash = Generichash.final state in
+  assert_bool "keyed staged dupe"
+    (0 = Generichash.compare direct_hash staged_hash);
+
+  let () = Generichash.Bytes.update state (Bytes.of_string "lalala") in
+  let staged_hash = Generichash.final state in
+  assert_bool "keyed staged immutable"
+    (0 = Generichash.compare direct_hash staged_hash);
+
+  let direct_hash = Generichash.(Bytes.digest ~size:size_max empty) in
+  let state = Generichash.(init ~size:size_max ()) in
+  let staged_hash = Generichash.final state in
+  assert_bool "size_max staged"
+    (0 = Generichash.compare direct_hash staged_hash);
+
+  let direct_hash = Generichash.(Bytes.digest message) in
+  let state = Generichash.init () in
+  let () = Generichash.Bytes.update state message in
+  let staged_hash = Generichash.final state in
+  assert_bool "message staged"
+    (0 = Generichash.compare direct_hash staged_hash)
 
 let suite = "Generichash" >::: [
     "test_digest"    >:: test_digest;
     "test_serialize" >:: test_serialize;
     "test_equal"     >:: test_equal;
     "test_exn"       >:: test_exn;
+    "test_streaming" >:: test_streaming;
   ]

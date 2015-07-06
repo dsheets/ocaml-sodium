@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
  * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -579,6 +579,7 @@ end
 
 module Generichash : sig
   type hash
+  type state
   type 'a key
   type secret_key = secret key
 
@@ -602,7 +603,7 @@ module Generichash : sig
 
   (** [compare h h'] is 0 if [h] and [h'] are equal, a negative
       integer if [h] is less than [h'], and a positive integer if [h]
-      is greater than [h']. [compare] {i is not constant time}. *)
+      is greater than [h']. [compare] {i {b is not constant time}}. *)
   val compare          : hash -> hash -> int
 
   (** Default recommended key size, in bytes. *)
@@ -621,6 +622,19 @@ module Generichash : sig
       {!key_size_default} bytes. *)
   val random_key       : unit -> secret key
 
+  (** [init ?key ?size ()] is a streaming hash state keyed with [key]
+      if supplied and computing a hash of size [size] (default
+      {!size_default}).
+
+      If [size] is greater than {!size_max} or less than {!size_min},
+      {!Size_mismatch} is raised. *)
+  val init             : ?key:secret key -> ?size:int -> unit -> state
+
+  (** [final state] is the final hash of the inputs collected in
+      [state]. Once [final] has been applied to [state], all
+      subsequent applications will yield the same hash. *)
+  val final            : state -> hash
+
   module type S = sig
     type storage
 
@@ -630,18 +644,17 @@ module Generichash : sig
 
     (** [to_hash s] converts [s] to a hash.
 
-        If [s] is not less than or equal to {!size_max} or greater
-        than or equal to {!size_min} bytes long, {!Invalid_argument} is
-        raised. *)
+        If [s] is greater than {!size_max} or less than {!size_min}
+        bytes long, {!Size_mismatch} is raised. *)
     val to_hash    : storage -> hash
 
     (** [of_key k] converts key [k] to type {!storage}. The result is
         [size_of_key k] bytes long. *)
     val of_key     : secret key -> storage
 
-    (** [to_key s] converts [s] to a {!secret} {!key}.  If [s] is not
-        less than or equal to {!key_size_max} or greater than or equal to
-        {!key_size_min} bytes long, {!Size_mismatch} is raised. *)
+    (** [to_key s] converts [s] to a {!secret} {!key}.  If [s] is
+        greater than {!key_size_max} or less than {!key_size_min}
+        bytes long, {!Size_mismatch} is raised. *)
     val to_key     : storage -> secret key
 
     (** [digest ?size m] computes a hash of size [size] (default
@@ -652,6 +665,8 @@ module Generichash : sig
         (default {!size_default} keyed by [key] for message [m]. *)
     val digest_with_key : secret key -> ?size:int -> storage -> hash
 
+    (** [update state m] updates the {!state} [state] with input [m]. *)
+    val update     : state -> storage -> unit
   end
 
   module Bytes : S with type storage = Bytes.t

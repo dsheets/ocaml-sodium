@@ -18,6 +18,7 @@
 
 open Ctypes
 open Unsigned
+module Static = Ctypes_static
 
 exception Verification_failure
 exception Size_mismatch of string
@@ -30,6 +31,7 @@ module Storage = Sodium_storage
 type bigbytes = Storage.bigbytes
 
 module C = Sodium_bindings.C(Sodium_generated)
+module Type = Sodium_types.C(Sodium_types_detected)
 
 let wipe str =
   C.memzero (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
@@ -833,6 +835,35 @@ module Generichash = struct
     Random.Bytes.generate key_size_default
 
   type hash = Bytes.t
+  type state = {
+    ptr  : Type.Generichash.state Static.structure ptr;
+    size : int;
+    mutable hash : hash option;
+  }
+
+  let init ?(key=Bytes.of_string "") ?(size=size_default) () =
+    if size < size_min || size > size_max then
+      raise (Size_mismatch "Generichash.init");
+    let ptr = allocate_n Type.Generichash.state ~count:1 in
+    let ret = C.init
+        ptr
+        (Storage.Bytes.to_ptr key)
+        (Size_t.of_int (size_of_key key))
+        (Size_t.of_int size)
+    in
+    assert (ret = 0); (* always returns 0 *)
+    { ptr; size; hash = None }
+
+  let final state = match state.hash with
+    | Some hash -> hash
+    | None ->
+      let hash = Storage.Bytes.create state.size in
+      let ret = C.final
+          state.ptr (Storage.Bytes.to_ptr hash) (Size_t.of_int state.size)
+      in
+      assert (ret = 0); (* always returns 0 *)
+      state.hash <- Some hash;
+      hash
 
   module type S = sig
     type storage
@@ -846,6 +877,7 @@ module Generichash = struct
     val digest          : ?size:int -> storage -> hash
     val digest_with_key : secret key -> ?size:int -> storage -> hash
 
+    val update  : state -> storage -> unit
   end
 
   module Make(T: Storage.S) = struct
@@ -893,6 +925,11 @@ module Generichash = struct
          See <https://github.com/ocamllabs/ocaml-ctypes/issues/316>.
       *)
       digest_internal size (Bytes.create 0) str
+
+    let update state str =
+      let ret = C.update state.ptr (T.to_ptr str) (T.len_ullong str) in
+      assert (ret = 0); (* always returns 0 *)
+      ()
   end
 
   module Bytes = Make(Storage.Bytes)
