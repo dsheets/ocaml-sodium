@@ -634,6 +634,10 @@ module Generichash : sig
       less than {!size_min} *)
   val init             : ?key:secret key -> ?size:int -> unit -> state
 
+  (** [copy state] is a copy of the {!state} [state] which can diverge
+      from the original (including finalization). *)
+  val copy             : state -> state
+
   (** [final state] is the final hash of the inputs collected in
       [state]. Once [final] has been applied to [state], all
       subsequent applications will yield the same hash.

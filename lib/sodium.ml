@@ -37,6 +37,11 @@ module Type = Sodium_types.C(Sodium_types_detected)
 let wipe str =
   C.memzero (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
 
+let memcpy ~dest ~src typ =
+  let size = sizeof typ in
+  let cast p = from_voidp (array size uchar) (to_voidp p) in
+  cast dest <-@ !@(cast src)
+
 let increment_be_bytes ?(step=1) b =
   let b = Bytes.copy b in
   let rec incr_byte step byteno =
@@ -854,6 +859,11 @@ module Generichash = struct
     in
     assert (ret = 0); (* always returns 0 *)
     { ptr; size; final = false }
+
+  let copy state =
+    let ptr = allocate_n Type.Generichash.state ~count:1 in
+    memcpy ~src:state.ptr ~dest:ptr Type.Generichash.state;
+    { state with ptr }
 
   let final state =
     if state.final then raise (Already_finalized "Generichash.final")

@@ -121,7 +121,21 @@ let test_streaming ctxt =
   let () = Generichash.Bytes.update state message in
   let staged_hash = Generichash.final state in
   assert_bool "message staged"
-    (0 = Generichash.compare direct_hash staged_hash)
+    (0 = Generichash.compare direct_hash staged_hash);
+
+  let hstate = Generichash.init () in
+  let hello = Bytes.of_string "hello" in
+  let () = Generichash.Bytes.update hstate hello in
+  let hwstate = Generichash.copy hstate in
+  let world = Bytes.of_string " world" in
+  let hello_world = Bytes.cat hello world in
+  let () = Generichash.Bytes.update hwstate world in
+  let h = Generichash.final hstate in
+  let hw = Generichash.final hwstate in
+  assert_bool "copy stream 1"
+    (0 = Generichash.compare (Generichash.Bytes.digest hello) h);
+  assert_bool "copy stream 2"
+    (0 = Generichash.compare (Generichash.Bytes.digest hello_world) hw)
 
 let suite = "Generichash" >::: [
     "test_digest"    >:: test_digest;
