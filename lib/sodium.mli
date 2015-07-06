@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
  * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -22,8 +22,12 @@
 (** Raised when message authentication fails. *)
 exception Verification_failure
 
-(** Raised when attempting to deserialize a malformed key or nonce. *)
+(** Raised when attempting to deserialize a malformed key, nonce, or
+    attempting to use a bad hash length. *)
 exception Size_mismatch of string
+
+(** Raised when attempting to finalize an already finalized stream state. *)
+exception Already_finalized of string
 
 (** Phantom type indicating that the key is public. *)
 type public
@@ -83,7 +87,8 @@ module Box : sig
   val random_nonce        : unit -> nonce
 
   (** [nonce_of_bytes b] creates a nonce out of bytes [b].
-      If [b] is not [nonce_size] byte long, {!Size_mismatch} is raised. *)
+
+      @raise Size_mismatch if [b] is not {!nonce_size} bytes long *)
   val nonce_of_bytes      : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
@@ -118,35 +123,39 @@ module Box : sig
     type storage
 
     (** [of_public_key k] converts [k] to type [storage]. The result
-        is [public_key_size] bytes long. *)
+        is {!public_key_size} bytes long. *)
     val of_public_key   : public key -> storage
 
     (** [to_public_key s] converts [s] to a public key.
-        If [s] is not [public_key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!public_key_size} bytes long *)
     val to_public_key   : storage -> public key
 
-    (** [of_secret_key k] converts [k] to type [storage]. The result
-        is [secret_key_size] bytes long. *)
+    (** [of_secret_key k] converts [k] to {!storage}. The result is
+        {!secret_key_size} bytes long. *)
     val of_secret_key   : secret key -> storage
 
     (** [to_secret_key s] converts [s] to a secret key.
-        If [s] is not [secret_key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!secret_key_size} bytes long *)
     val to_secret_key   : storage -> secret key
 
-    (** [of_channel_key k] converts [k] to type [storage]. The result
-        is [channel_key_size] bytes long. *)
+    (** [of_channel_key k] converts [k] to {!storage}. The result is
+        {!channel_key_size} bytes long. *)
     val of_channel_key  : channel key -> storage
 
     (** [to_channel_key s] converts [s] to a channel key.
-        If [s] is not [channel_key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!channel_key_size} bytes long *)
     val to_channel_key  : storage -> channel key
 
-    (** [of_nonce n] converts [n] to type [storage]. The result
-        is [nonce_size] bytes long. *)
+    (** [of_nonce n] converts [n] to {!storage}. The result is
+        {!nonce_size} bytes long. *)
     val of_nonce        : nonce -> storage
 
     (** [to_nonce s] converts [s] to a nonce.
-        If [s] is not [nonce_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!nonce_size} bytes long *)
     val to_nonce        : storage -> nonce
 
     (** [box sk pk m n] encrypts and authenticates a message [m] using
@@ -157,8 +166,9 @@ module Box : sig
     (** [box_open sk pk c n] verifies and decrypts a ciphertext [c] using
         the receiver's secret key [sk], the sender's public key [pk], and
         a nonce [n].
-        If authenticity of message cannot be verified, {!Verification_failure}
-        is raised. *)
+
+        @raise Verification_failure if authenticity of message cannot
+        be verified *)
     val box_open        : secret key -> public key -> storage -> nonce -> storage
 
     (** [fast_box ck m n] encrypts and authenticates a message [m] using
@@ -169,8 +179,9 @@ module Box : sig
     (** [fast_box_open ck c n] verifies and decrypts a ciphertext [c] using
         the channel key [ck] precomputed from receiver's secret key
         and the sender's public key, and a nonce [n].
-        If authenticity of message cannot be verified, {!Verification_failure}
-        is raised. *)
+
+        @raise Verification_failure if authenticity of message cannot
+        be verified *)
     val fast_box_open   : channel key -> storage -> nonce -> storage
   end
 
@@ -207,20 +218,22 @@ module Scalar_mult : sig
   module type S = sig
     type storage
 
-    (** [of_group_elt ge] converts [ge] to type [storage]. The result
-        is [group_elt_size] bytes long. *)
+    (** [of_group_elt ge] converts [ge] to {!storage}. The result
+        is {!group_elt_size} bytes long. *)
     val of_group_elt  : group_elt -> storage
 
     (** [to_group_elt s] converts [s] to a group_elt.
-        If [s] is not [group_elt_size] long, {!Invalid_argument} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!group_elt_size} bytes long *)
     val to_group_elt  : storage -> group_elt
 
-    (** [of_integer i] converts [i] to type [storage]. The result
-        is [integer_size] bytes long. *)
+    (** [of_integer i] converts [i] to {!storage}. The result
+        is {!integer_size} bytes long. *)
     val of_integer    : integer -> storage
 
     (** [to_integer s] converts [s] to a integer.
-        If [s] is not [integer_size] long, {!Invalid_argument} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!integer_size} bytes long *)
     val to_integer    : storage -> integer
   end
 
@@ -290,28 +303,33 @@ module Sign : sig
   module type S = sig
     type storage
 
-    (** [of_public_key k] converts [k] to type [storage]. The result
-        is [public_key_size] bytes long. *)
+    (** [of_public_key k] converts [k] to {!storage}. The result is
+        {!public_key_size} bytes long. *)
     val of_public_key   : public key -> storage
 
     (** [to_public_key s] converts [s] to a public key.
-        If [s] is not [public_key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!public_key_size} bytes
+        long *)
     val to_public_key   : storage -> public key
 
-    (** [of_secret_key k] converts [k] to type [storage]. The result
-        is [secret_key_size] bytes long. *)
+    (** [of_secret_key k] converts [k] to {!storage}. The result is
+        {!secret_key_size} bytes long. *)
     val of_secret_key   : secret key -> storage
 
     (** [to_secret_key s] converts [s] to a secret key.
-        If [s] is not [secret_key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!secret_key_size} bytes
+        long *)
     val to_secret_key   : storage -> secret key
 
-    (** [of_signature a] converts [a] to type [storage]. The result
-        is [signature_size] bytes long. *)
+    (** [of_signature a] converts [a] to {!storage}. The result is
+        {!signature_size} bytes long. *)
     val of_signature    : signature -> storage
 
     (** [to_signature s] converts [s] to a signature.
-        If [s] is not [signature_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!signature_size} bytes long *)
     val to_signature    : storage -> signature
 
     (** [of_seed s] converts [s] to type {!storage}. The result is
@@ -319,7 +337,8 @@ module Sign : sig
     val of_seed         : seed -> storage
 
     (** [to_seed s] converts [s] to a seed.
-        If [s] is not {!seed_size} long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!seed_size} bytes long *)
     val to_seed         : storage -> seed
 
     (** [sign sk m] signs a message [m] using the signer's secret key [sk],
@@ -328,8 +347,9 @@ module Sign : sig
 
     (** [sign_open pk sm] verifies the signature in [sm] using the signer's
         public key [pk], and returns the message.
-        If authenticity of message cannot be verified, {!Verification_failure}
-        is raised. *)
+
+        @raise Verification_failure if authenticity of message cannot
+        be verified *)
     val sign_open       : public key -> storage -> storage
 
     (** [sign_detached sk m] signs a message [m] using the signer's secret
@@ -337,8 +357,10 @@ module Sign : sig
     val sign_detached   : secret key -> storage -> signature
 
     (** [verify pk s m] checks that [s] is a correct signature of a message
-        [m] under the public key [pk]. If it is not, {!Verification_failure}
-        is raised. *)
+        [m] under the public key [pk].
+
+        @raise Verification_failure if [s] is not a correct signature
+        of [m] under [pk] *)
     val verify          : public key -> signature -> storage -> unit
   end
 
@@ -367,7 +389,8 @@ module Secret_box : sig
   val random_nonce    : unit -> nonce
 
   (** [nonce_of_bytes b] creates a nonce out of bytes [b].
-      If [b] is not [nonce_size] byte long, {!Size_mismatch} is raised. *)
+
+      @raise Size_mismatch if [b] is not {!nonce_size} bytes long *)
   val nonce_of_bytes  : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
@@ -384,20 +407,22 @@ module Secret_box : sig
   module type S = sig
     type storage
 
-    (** [of_key k] converts [k] to type [storage]. The result
-        is [key_size] bytes long. *)
+    (** [of_key k] converts [k] to {!storage}. The result is
+        {!key_size} bytes long. *)
     val of_key          : secret key -> storage
 
     (** [to_key s] converts [s] to a secret key.
-        If [s] is not [key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!key_size} bytes long *)
     val to_key          : storage -> secret key
 
-    (** [of_nonce n] converts [n] to type [storage]. The result
-        is [nonce_size] bytes long. *)
+    (** [of_nonce n] converts [n] to {!storage}. The result is
+        {!nonce_size} bytes long. *)
     val of_nonce        : nonce -> storage
 
     (** [to_nonce s] converts [s] to a nonce.
-        If [s] is not [nonce_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!nonce_size} bytes long *)
     val to_nonce        : storage -> nonce
 
     (** [secret_box k m n] encrypts and authenticates a message [m] using
@@ -407,8 +432,10 @@ module Secret_box : sig
 
     (** [secret_box_open k c n] verifies and decrypts a ciphertext [c] using
         a secret key [k] and a nonce [n], and returns the resulting plaintext
-        [m]. If authenticity of message cannot be verified,
-        {!Verification_failure} is raised. *)
+        [m].
+
+        @raise Verification_failure if authenticity of message cannot
+        be verified *)
     val secret_box_open : secret key -> storage -> nonce -> storage
   end
 
@@ -437,7 +464,8 @@ module Stream : sig
   val random_nonce    : unit -> nonce
 
   (** [nonce_of_bytes b] creates a nonce out of bytes [b].
-      If [b] is not [nonce_size] byte long, {!Size_mismatch} is raised. *)
+
+      @raise Size_mismatch if [b] is not {!nonce_size} bytes long *)
   val nonce_of_bytes  : Bytes.t -> nonce
 
   (** [increment_nonce ?step n] interprets nonce [n] as a big-endian
@@ -454,20 +482,22 @@ module Stream : sig
   module type S = sig
     type storage
 
-    (** [of_key k] converts [k] to type [storage]. The result
-        is [key_size] bytes long. *)
+    (** [of_key k] converts [k] to {!storage}. The result is
+        {!key_size} bytes long. *)
     val of_key          : secret key -> storage
 
     (** [to_key s] converts [s] to a secret key.
-        If [s] is not [key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!key_size} bytes long *)
     val to_key          : storage -> secret key
 
-    (** [of_nonce n] converts [n] to type [storage]. The result
-        is [nonce_size] bytes long. *)
+    (** [of_nonce n] converts [n] to {!storage}. The result is
+        {!nonce_size} bytes long. *)
     val of_nonce        : nonce -> storage
 
     (** [to_nonce s] converts [s] to a nonce.
-        If [s] is not [nonce_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!nonce_size} bytes long *)
     val to_nonce        : storage -> nonce
 
     (** [stream k len n] produces a [len]-byte stream [c] as a function of
@@ -509,20 +539,22 @@ module Auth : sig
   module type S = sig
     type storage
 
-    (** [of_key k] converts [k] to type [storage]. The result
-        is [key_size] bytes long. *)
+    (** [of_key k] converts [k] to {!storage}. The result is
+        {!key_size} bytes long. *)
     val of_key  : secret key -> storage
 
     (** [to_key s] converts [s] to a secret key.
-        If [s] is not [key_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!key_size} bytes long *)
     val to_key  : storage -> secret key
 
-    (** [of_auth a] converts [a] to type [storage]. The result
-        is [auth_size] bytes long. *)
+    (** [of_auth a] converts [a] to {!storage}. The result is
+        {!auth_size} bytes long. *)
     val of_auth : auth -> storage
 
     (** [to_auth s] converts [s] to an authenticator.
-        If [s] is not [auth_size] long, {!Size_mismatch} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!auth_size} bytes long *)
     val to_auth : storage -> auth
 
     (** [auth k m] authenticates a message [m] using a secret key [k],
@@ -530,8 +562,10 @@ module Auth : sig
     val auth    : secret key -> storage -> auth
 
     (** [verify k a m] checks that [a] is a correct authenticator
-        of a message [m] under the secret key [k]. If it is not,
-        {!Verification_failure} is raised. *)
+        of a message [m] under the secret key [k].
+
+        @raise Verification_failure if [a] is not a correct authenticator
+        of [m] under [k] *)
     val verify  : secret key -> auth -> storage -> unit
   end
 
@@ -561,16 +595,123 @@ module Hash : sig
   module type S = sig
     type storage
 
-    (** [of_hash h] converts [h] to type [storage]. The result
-        is [size] bytes long. *)
+    (** [of_hash h] converts [h] to {!storage}. The result is {!size}
+        bytes long. *)
     val of_hash : hash -> storage
 
     (** [to_hash s] converts [s] to a hash.
-        If [s] is not [size] long, {!Invalid_argument} is raised. *)
+
+        @raise Size_mismatch if [s] is not {!size} bytes long *)
     val to_hash : storage -> hash
 
     (** [digest m] computes a hash for message [m]. *)
     val digest  : storage -> hash
+  end
+
+  module Bytes : S with type storage = Bytes.t
+  module Bigbytes : S with type storage = bigbytes
+end
+
+module Generichash : sig
+  type hash
+  type state
+  type 'a key
+  type secret_key = secret key
+
+  (** Primitive used by this implementation. Currently ["blake2b"]. *)
+  val primitive        : string
+
+  (** [wipe_key k] overwrites [k] with zeroes. *)
+  val wipe_key         : secret key -> unit
+
+  (** Default recommended output size, in bytes. *)
+  val size_default     : int
+
+  (** Minimum supported output size, in bytes. *)
+  val size_min         : int
+
+  (** Maximum supported output size, in bytes. *)
+  val size_max         : int
+
+  (** [size_of_hash hash] is the size, in bytes, of the {!hash} [hash]. *)
+  val size_of_hash     : hash -> int
+
+  (** [compare h h'] is 0 if [h] and [h'] are equal, a negative
+      integer if [h] is less than [h'], and a positive integer if [h]
+      is greater than [h']. [compare] {i {b is not constant time}}. *)
+  val compare          : hash -> hash -> int
+
+  (** Default recommended key size, in bytes. *)
+  val key_size_default : int
+
+  (** Minimum supported key size, in bytes. *)
+  val key_size_min     : int
+
+  (** Maximum supported key size, in bytes. *)
+  val key_size_max     : int
+
+  (** [size_of_key key] is the size, in bytes, of the {!key} [key]. *)
+  val size_of_key      : secret key -> int
+
+  (** [random_key ()] generates a random secret key of
+      {!key_size_default} bytes. *)
+  val random_key       : unit -> secret key
+
+  (** [init ?key ?size ()] is a streaming hash state keyed with [key]
+      if supplied and computing a hash of size [size] (default
+      {!size_default}).
+
+      @raise Size_mismatch if [size] is greater than {!size_max} or
+      less than {!size_min} *)
+  val init             : ?key:secret key -> ?size:int -> unit -> state
+
+  (** [copy state] is a copy of the {!state} [state] which can diverge
+      from the original (including finalization). *)
+  val copy             : state -> state
+
+  (** [final state] is the final hash of the inputs collected in
+      [state].
+
+      @raise Already_finalized if [state] has already had [final]
+      applied to it *)
+  val final            : state -> hash
+
+  module type S = sig
+    type storage
+
+    (** [of_hash h] converts [h] to {!storage}. The result
+        is [size_of_hash h] bytes long. *)
+    val of_hash    : hash -> storage
+
+    (** [to_hash s] converts [s] to a hash.
+
+        @raise Size_mismatch if [s] is greater than {!size_max} or
+        less than {!size_min} bytes long *)
+    val to_hash    : storage -> hash
+
+    (** [of_key k] converts key [k] to {!storage}. The result is
+        [size_of_key k] bytes long. *)
+    val of_key     : secret key -> storage
+
+    (** [to_key s] converts [s] to a {!secret} {!key}.
+
+        @raise Size_mismatch if [s] is greater than {!key_size_max} or
+        less than {!key_size_min} bytes long *)
+    val to_key     : storage -> secret key
+
+    (** [digest ?size m] computes a hash of size [size] (default
+        {!size_default}) for message [m]. *)
+    val digest     : ?size:int -> storage -> hash
+
+    (** [digest_with_key key m] computes a hash of size [size]
+        (default {!size_default} keyed by [key] for message [m]. *)
+    val digest_with_key : secret key -> ?size:int -> storage -> hash
+
+    (** [update state m] updates the {!state} [state] with input [m].
+
+        @raise Already_finalized if [state] has already had {!final}
+        applied to it *)
+    val update     : state -> storage -> unit
   end
 
   module Bytes : S with type storage = Bytes.t

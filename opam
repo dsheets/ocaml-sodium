@@ -1,11 +1,20 @@
 opam-version: "1.2"
 name: "sodium"
-version: "0.4.1"
+version: "0.5.0"
 maintainer: "sheets@alum.mit.edu"
+authors: [
+  "David Sheets <sheets@alum.mit.edu"
+  "Peter Zotov <whitequark@whitequark.org>"
+]
+homepage: "https://github.com/dsheets/ocaml-sodium/"
+bug-reports: "https://github.com/dsheets/ocaml-sodium/issues/"
+dev-repo: "https://github.com/dsheets/ocaml-sodium.git"
 tags: ["org:mirage"]
 build: [
   [make] { os != "freebsd" }
   [make "CFLAGS=-I/usr/local/include -L/usr/local/lib"] { os = "freebsd" }
+]
+install: [
   [make "PREFIX=%{prefix}%" "install"]
 ]
 build-test: [
@@ -24,5 +33,15 @@ depexts: [
   [ ["ubuntu"] ["libsodium-dev"] ]
   [ ["freebsd"] ["security/libsodium"] ]
   [ ["osx" "homebrew"] ["libsodium"] ]
+]
+post-messages: [
+  "This package requires installation of libsodium-dev (>= 0.7.0)"
+  { failure & os = "debian" }
+  "This package requires installation of libsodium-dev (>= 0.7.0)"
+  { failure & os = "ubuntu" }
+  "This package requires installation of security/libsodium (>= 0.7.0)"
+  { failure & os = "freebsd" }
+  "This package requires installation of libsodium (>= 0.7.0)"
+  { failure & os = "osx" }
 ]
 available: [ocaml-version >= "4.01.0"]

@@ -5,8 +5,7 @@
 [NaCl](http://nacl.cr.yp.to/). GNU/Linux, FreeBSD, and OS X operating
 systems are supported. OCaml 4.01.0 or later is required to build.
 
-All original NaCl primitives are wrapped. `crypto_shorthash` and
-`crypto_generichash` are so far missing.
+All original NaCl primitives are wrapped. `crypto_shorthash` is missing.
 
 ``` ocaml
 open Sodium

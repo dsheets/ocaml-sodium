@@ -1,4 +1,24 @@
+(*
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ *)
+
 open Ctypes
+
+module Type = Sodium_types.C(Sodium_types_detected)
 
 module C(F: Cstubs.FOREIGN) = struct
   let prefix = "sodium"
@@ -190,4 +210,50 @@ module C(F: Cstubs.FOREIGN) = struct
                                     (ocaml_bytes @-> T.ctype @-> ullong @-> returning int)
     end
   end
+
+  module Generichash = struct
+    let primitive = "blake2b"
+    let prefix    = "crypto_generichash_"^primitive
+
+    let sz_query_type = void @-> returning size_t
+
+    let hashbytes     = F.foreign (prefix^"_bytes") sz_query_type
+    let hashbytesmin  = F.foreign (prefix^"_bytes_min") sz_query_type
+    let hashbytesmax  = F.foreign (prefix^"_bytes_max") sz_query_type
+
+    let keybytes      = F.foreign (prefix^"_keybytes") sz_query_type
+    let keybytesmin   = F.foreign (prefix^"_keybytes_min") sz_query_type
+    let keybytesmax   = F.foreign (prefix^"_keybytes_max") sz_query_type
+
+    let init          = F.foreign (prefix^"_init")
+                                  (    ptr Type.Generichash.state
+                                   @-> ocaml_bytes
+                                   @-> size_t
+                                   @-> size_t
+                                   @-> returning int)
+
+    let final         = F.foreign (prefix^"_final")
+                                  (    ptr Type.Generichash.state
+                                   @-> ocaml_bytes
+                                   @-> size_t
+                                   @-> returning int)
+
+    module Make(T: Sodium_storage.S) = struct
+      let hash = F.foreign (prefix)
+                           (    ocaml_bytes  (*  uchar* out                *)
+                            @-> size_t       (*  size_t out_len            *)
+                            @-> T.ctype      (*  uchar* in                 *)
+                            @-> ullong       (*  unsigned long long in_len *)
+                            @-> ocaml_bytes  (*  uchar* key                *)
+                            @-> size_t       (*  size_t keylen             *)
+                            @-> returning int)
+
+      let update = F.foreign (prefix^"_update")
+                             (    ptr Type.Generichash.state
+                              @-> T.ctype
+                              @-> ullong
+                              @-> returning int)
+    end
+  end
+
 end

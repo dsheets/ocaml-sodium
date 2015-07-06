@@ -7,6 +7,35 @@ dispatch begin
   function
   | After_rules ->
 
+    rule "cstubs: lib_gen/x_types_detect.c -> x_types_detect"
+      ~prods:["lib_gen/%_types_detect"]
+      ~deps:["lib_gen/%_types_detect.c"]
+      (fun env build ->
+         Cmd (S[A"cc";
+                A("-I"^libdir);
+                A"-o";
+                A(env "lib_gen/%_types_detect");
+                A(env "lib_gen/%_types_detect.c");
+               ]));
+
+    rule "cstubs: lib_gen/x_types_detect -> lib/x_types_detected.ml"
+      ~prods:["lib/%_types_detected.ml"]
+      ~deps:["lib_gen/%_types_detect"]
+      (fun env build ->
+         Cmd (S[A(env "lib_gen/%_types_detect");
+                Sh">";
+                A(env "lib/%_types_detected.ml");
+               ]));
+
+    rule "cstubs: lib_gen/x_types.ml -> x_types_detect.c"
+      ~prods:["lib_gen/%_types_detect.c"]
+      ~deps: ["lib_gen/%_typegen.byte"]
+      (fun env build ->
+         Cmd (A(env "lib_gen/%_typegen.byte")));
+
+    copy_rule "cstubs: lib_gen/x_types.ml -> lib/x_types.ml"
+      "lib_gen/%_types.ml" "lib/%_types.ml";
+
     rule "cstubs: lib/x_bindings.ml -> x_stubs.c, x_stubs.ml"
       ~prods:["lib/%_stubs.c"; "lib/%_generated.ml"]
       ~deps: ["lib_gen/%_bindgen.byte"]

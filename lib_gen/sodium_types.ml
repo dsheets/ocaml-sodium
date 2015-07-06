@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
+ * Copyright (c) 2015 David Sheets <sheets@alum.mit.edu>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,19 +15,16 @@
  *
  *)
 
-open OUnit2
+module Static = Ctypes_static
 
-let suite = "Sodium" >::: [
-    Test_random.suite;
-    Test_box.suite;
-    Test_scalar_mult.suite;
-    Test_sign.suite;
-    Test_secret_box.suite;
-    Test_stream.suite;
-    Test_auth.suite;
-    Test_hash.suite;
-    Test_generichash.suite;
-  ]
+module C(F: Cstubs.Types.TYPE) = struct
 
-let _ =
-  run_test_tt_main suite
+  module Generichash = struct
+    type state
+    let state : state Static.structure F.typ =
+      F.structure "crypto_generichash_blake2b_state"
+
+    let () = F.seal state
+  end
+
+end

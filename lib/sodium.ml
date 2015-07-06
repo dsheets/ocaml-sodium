@@ -18,9 +18,11 @@
 
 open Ctypes
 open Unsigned
+module Static = Ctypes_static
 
 exception Verification_failure
 exception Size_mismatch of string
+exception Already_finalized of string
 
 type public
 type secret
@@ -30,9 +32,15 @@ module Storage = Sodium_storage
 type bigbytes = Storage.bigbytes
 
 module C = Sodium_bindings.C(Sodium_generated)
+module Type = Sodium_types.C(Sodium_types_detected)
 
 let wipe str =
   C.memzero (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
+
+let memcpy ~dest ~src typ =
+  let size = sizeof typ in
+  let cast p = from_voidp (array size uchar) (to_voidp p) in
+  cast dest <-@ !@(cast src)
 
 let increment_be_bytes ?(step=1) b =
   let b = Bytes.copy b in
@@ -802,6 +810,139 @@ module Hash = struct
         (T.len_ullong str) in
       assert (ret = 0); (* always returns 0 *)
       hash
+  end
+
+  module Bytes = Make(Storage.Bytes)
+  module Bigbytes = Make(Storage.Bigbytes)
+end
+
+module Generichash = struct
+  module C = C.Generichash
+  let primitive = C.primitive
+
+  type 'a key = Bytes.t
+  type secret_key = secret key
+
+  let wipe_key = wipe
+
+  let size_default   = Size_t.to_int (C.hashbytes ())
+  let size_min       = Size_t.to_int (C.hashbytesmin ())
+  let size_max       = Size_t.to_int (C.hashbytesmax ())
+  let size_of_hash h = Bytes.length h
+
+  let compare = Bytes.compare
+
+  let key_size_default = Size_t.to_int (C.keybytes ())
+  let key_size_min     = Size_t.to_int (C.keybytesmin ())
+  let key_size_max     = Size_t.to_int (C.keybytesmax ())
+  let size_of_key k    = Bytes.length k
+
+  let random_key () =
+    Random.Bytes.generate key_size_default
+
+  type hash = Bytes.t
+  type state = {
+    ptr  : Type.Generichash.state Static.structure ptr;
+    size : int;
+    mutable final : bool;
+  }
+
+  let init ?(key=Bytes.of_string "") ?(size=size_default) () =
+    if size < size_min || size > size_max then
+      raise (Size_mismatch "Generichash.init");
+    let ptr = allocate_n Type.Generichash.state ~count:1 in
+    let ret = C.init
+        ptr
+        (Storage.Bytes.to_ptr key)
+        (Size_t.of_int (size_of_key key))
+        (Size_t.of_int size)
+    in
+    assert (ret = 0); (* always returns 0 *)
+    { ptr; size; final = false }
+
+  let copy state =
+    let ptr = allocate_n Type.Generichash.state ~count:1 in
+    memcpy ~src:state.ptr ~dest:ptr Type.Generichash.state;
+    { state with ptr }
+
+  let final state =
+    if state.final then raise (Already_finalized "Generichash.final")
+    else
+      let hash = Storage.Bytes.create state.size in
+      let ret = C.final
+          state.ptr (Storage.Bytes.to_ptr hash) (Size_t.of_int state.size)
+      in
+      assert (ret = 0); (* always returns 0 *)
+      state.final <- true;
+      hash
+
+  module type S = sig
+    type storage
+
+    val of_hash : hash -> storage
+    val to_hash : storage -> hash
+
+    val of_key  : secret key -> storage
+    val to_key  : storage -> secret key
+
+    val digest          : ?size:int -> storage -> hash
+    val digest_with_key : secret key -> ?size:int -> storage -> hash
+
+    val update  : state -> storage -> unit
+  end
+
+  module Make(T: Storage.S) = struct
+    module C = C.Make(T)
+    type storage = T.t
+
+    let of_hash str =
+      T.of_bytes str
+
+    let to_hash str =
+      let len = T.length str in
+      if len < size_min || len > size_max then
+        raise (Size_mismatch "Generichash.to_hash");
+      T.to_bytes str
+
+    let of_key str =
+      T.of_bytes str
+
+    let to_key str =
+      let len = T.length str in
+      if len < key_size_min || len > key_size_max then
+        raise (Size_mismatch "Generichash.to_key");
+      T.to_bytes str
+
+    let digest_internal size key str =
+      let hash = Storage.Bytes.create size in
+      let ret = C.hash
+        (Storage.Bytes.to_ptr hash) (Size_t.of_int size)
+        (T.to_ptr str) (T.len_ullong str)
+        (Storage.Bytes.to_ptr key) (Size_t.of_int (size_of_key key))
+      in
+      assert (ret = 0); (* always returns 0 *)
+      hash
+
+    let digest_with_key key ?(size=size_default) str =
+      if size < size_min || size > size_max then
+        raise (Size_mismatch "Generichash.digest_with_key");
+      digest_internal size key str
+
+    let digest ?(size=size_default) str =
+      if size < size_min || size > size_max then
+        raise (Size_mismatch "Generichash.digest");
+      (* TODO: The key should be NULL here but we can't represent that
+         with ctypes yet without giving up zero-copy passing.
+         See <https://github.com/ocamllabs/ocaml-ctypes/issues/316>.
+      *)
+      digest_internal size (Bytes.create 0) str
+
+    let update state str =
+      if state.final then raise (Already_finalized "Generichash.update")
+      else
+        let ret = C.update state.ptr (T.to_ptr str) (T.len_ullong str) in
+        assert (ret = 0); (* always returns 0 *)
+        ()
   end
 
   module Bytes = Make(Storage.Bytes)
