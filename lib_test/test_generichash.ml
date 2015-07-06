@@ -104,14 +104,11 @@ let test_streaming ctxt =
   let staged_hash = Generichash.final state in
   assert_bool "keyed staged" (0 = Generichash.compare direct_hash staged_hash);
 
-  let staged_hash = Generichash.final state in
-  assert_bool "keyed staged dupe"
-    (0 = Generichash.compare direct_hash staged_hash);
+  assert_raises (Already_finalized "Generichash.final")
+    (fun () -> Generichash.final state);
 
-  let () = Generichash.Bytes.update state (Bytes.of_string "lalala") in
-  let staged_hash = Generichash.final state in
-  assert_bool "keyed staged immutable"
-    (0 = Generichash.compare direct_hash staged_hash);
+  assert_raises (Already_finalized "Generichash.update")
+    (fun () -> Generichash.Bytes.update state (Bytes.of_string "lalala"));
 
   let direct_hash = Generichash.(Bytes.digest ~size:size_max empty) in
   let state = Generichash.(init ~size:size_max ()) in

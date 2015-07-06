@@ -22,6 +22,7 @@ module Static = Ctypes_static
 
 exception Verification_failure
 exception Size_mismatch of string
+exception Already_finalized of string
 
 type public
 type secret
@@ -838,7 +839,7 @@ module Generichash = struct
   type state = {
     ptr  : Type.Generichash.state Static.structure ptr;
     size : int;
-    mutable hash : hash option;
+    mutable final : bool;
   }
 
   let init ?(key=Bytes.of_string "") ?(size=size_default) () =
@@ -852,17 +853,17 @@ module Generichash = struct
         (Size_t.of_int size)
     in
     assert (ret = 0); (* always returns 0 *)
-    { ptr; size; hash = None }
+    { ptr; size; final = false }
 
-  let final state = match state.hash with
-    | Some hash -> hash
-    | None ->
+  let final state =
+    if state.final then raise (Already_finalized "Generichash.final")
+    else
       let hash = Storage.Bytes.create state.size in
       let ret = C.final
           state.ptr (Storage.Bytes.to_ptr hash) (Size_t.of_int state.size)
       in
       assert (ret = 0); (* always returns 0 *)
-      state.hash <- Some hash;
+      state.final <- true;
       hash
 
   module type S = sig
@@ -927,9 +928,11 @@ module Generichash = struct
       digest_internal size (Bytes.create 0) str
 
     let update state str =
-      let ret = C.update state.ptr (T.to_ptr str) (T.len_ullong str) in
-      assert (ret = 0); (* always returns 0 *)
-      ()
+      if state.final then raise (Already_finalized "Generichash.update")
+      else
+        let ret = C.update state.ptr (T.to_ptr str) (T.len_ullong str) in
+        assert (ret = 0); (* always returns 0 *)
+        ()
   end
 
   module Bytes = Make(Storage.Bytes)

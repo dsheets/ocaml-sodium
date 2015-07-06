@@ -22,8 +22,12 @@
 (** Raised when message authentication fails. *)
 exception Verification_failure
 
-(** Raised when attempting to deserialize a malformed key or nonce. *)
+(** Raised when attempting to deserialize a malformed key, nonce, or
+    attempting to use a bad hash length. *)
 exception Size_mismatch of string
+
+(** Raised when attempting to finalize an already finalized stream state. *)
+exception Already_finalized of string
 
 (** Phantom type indicating that the key is public. *)
 type public
@@ -626,13 +630,16 @@ module Generichash : sig
       if supplied and computing a hash of size [size] (default
       {!size_default}).
 
-      If [size] is greater than {!size_max} or less than {!size_min},
-      {!Size_mismatch} is raised. *)
+      @raise Size_mismatch if [size] is greater than {!size_max} or
+      less than {!size_min} *)
   val init             : ?key:secret key -> ?size:int -> unit -> state
 
   (** [final state] is the final hash of the inputs collected in
       [state]. Once [final] has been applied to [state], all
-      subsequent applications will yield the same hash. *)
+      subsequent applications will yield the same hash.
+
+      @raise Already_finalized if [state] has already had [final]
+      applied to it *)
   val final            : state -> hash
 
   module type S = sig
@@ -644,17 +651,18 @@ module Generichash : sig
 
     (** [to_hash s] converts [s] to a hash.
 
-        If [s] is greater than {!size_max} or less than {!size_min}
-        bytes long, {!Size_mismatch} is raised. *)
+        @raise Size_mismatch if [s] is greater than {!size_max} or
+        less than {!size_min} bytes long *)
     val to_hash    : storage -> hash
 
     (** [of_key k] converts key [k] to type {!storage}. The result is
         [size_of_key k] bytes long. *)
     val of_key     : secret key -> storage
 
-    (** [to_key s] converts [s] to a {!secret} {!key}.  If [s] is
-        greater than {!key_size_max} or less than {!key_size_min}
-        bytes long, {!Size_mismatch} is raised. *)
+    (** [to_key s] converts [s] to a {!secret} {!key}.
+
+        @raise Size_mismatch if [s] is greater than {!key_size_max} or
+        less than {!key_size_min} bytes long *)
     val to_key     : storage -> secret key
 
     (** [digest ?size m] computes a hash of size [size] (default
@@ -665,7 +673,10 @@ module Generichash : sig
         (default {!size_default} keyed by [key] for message [m]. *)
     val digest_with_key : secret key -> ?size:int -> storage -> hash
 
-    (** [update state m] updates the {!state} [state] with input [m]. *)
+    (** [update state m] updates the {!state} [state] with input [m].
+
+        @raise Already_finalized if [state] has already had {!final}
+        applied to it *)
     val update     : state -> storage -> unit
   end
 
