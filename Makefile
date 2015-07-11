@@ -1,11 +1,13 @@
 MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CURRENT_DIR := $(dir $(MAKEFILE_PATH))
 
-include $(shell ocamlc -where)/Makefile.config
+OCAML_LIB_DIR=$(shell ocamlc -where)
+include $(OCAML_LIB_DIR)/Makefile.config
 
-LIB_DIR=$(shell ocamlfind query ctypes)
+CTYPES_LIB_DIR=$(shell ocamlfind query ctypes)
 
-OCAMLBUILD=OCAML_LIB_DIR=$(LIB_DIR) ocamlbuild -use-ocamlfind -classic-display 
+ENV=CTYPES_LIB_DIR=$(CTYPES_LIB_DIR) OCAML_LIB_DIR=$(OCAML_LIB_DIR)
+OCAMLBUILD=$(ENV) ocamlbuild -use-ocamlfind -classic-display
 
 all:
 	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa

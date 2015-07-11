@@ -1,7 +1,8 @@
 open Ocamlbuild_plugin;;
 open Ocamlbuild_pack;;
 
-let libdir = Sys.getenv "OCAML_LIB_DIR" in
+let ctypes_libdir = Sys.getenv "CTYPES_LIB_DIR" in
+let ocaml_libdir = Sys.getenv "OCAML_LIB_DIR" in
 
 dispatch begin
   function
@@ -12,7 +13,8 @@ dispatch begin
       ~deps:["lib_gen/%_types_detect.c"]
       (fun env build ->
          Cmd (S[A"cc";
-                A("-I"^libdir);
+                A("-I"); A ctypes_libdir;
+                A("-I"); A ocaml_libdir;
                 A"-o";
                 A(env "lib_gen/%_types_detect");
                 A(env "lib_gen/%_types_detect.c");
@@ -51,7 +53,7 @@ dispatch begin
       S[A"-cclib"; A"-L/usr/local/lib"];
 
     (* Linking cstubs *)
-    flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A libdir];
+    flag ["c"; "compile"; "use_ctypes"] & S[A"-I"; A ctypes_libdir];
     flag ["c"; "compile"; "debug"] & A"-g";
 
     (* Linking sodium *)
