@@ -949,5 +949,5 @@ module Generichash = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
-let () =
+let initialized =
   C.init ()

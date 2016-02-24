@@ -23,9 +23,9 @@ module Type = Sodium_types.C(Sodium_types_detected)
 module C(F: Cstubs.FOREIGN) = struct
   let prefix = "sodium"
 
-  let init    = F.foreign (prefix^"_init")    (void @-> returning void)
+  let init    = F.foreign (prefix^"_init")    (void @-> returning int)
   let memzero = F.foreign (prefix^"_memzero") (ocaml_bytes @-> size_t @-> returning void)
-  let memcmp  = F.foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning void)
+  let memcmp  = F.foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning int)
 
   module Verify = struct
     let verify_type = ocaml_bytes @-> ocaml_bytes @-> returning int
