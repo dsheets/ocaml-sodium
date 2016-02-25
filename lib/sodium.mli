@@ -717,3 +717,5 @@ module Generichash : sig
   module Bytes : S with type storage = Bytes.t
   module Bigbytes : S with type storage = bigbytes
 end
+
+val initialized : int
