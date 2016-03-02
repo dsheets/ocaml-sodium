@@ -718,4 +718,4 @@ module Generichash : sig
   module Bigbytes : S with type storage = bigbytes
 end
 
-val initialized : int
+val initialized : bool

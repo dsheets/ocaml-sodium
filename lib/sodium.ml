@@ -949,5 +949,8 @@ module Generichash = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
-let initialized =
-  C.init ()
+let initialized = match C.init () with
+  0 -> true
+  | 1 -> true
+  | -1 -> false
+  | _ -> assert false
