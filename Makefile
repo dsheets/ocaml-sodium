@@ -10,7 +10,7 @@ ENV=CTYPES_LIB_DIR=$(CTYPES_LIB_DIR) OCAML_LIB_DIR=$(OCAML_LIB_DIR)
 OCAMLBUILD=$(ENV) ocamlbuild -use-ocamlfind -classic-display
 
 all:
-	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa
+	$(OCAMLBUILD) lib/sodium.cma lib/sodium.cmxa lib/sodium.cmxs
 
 clean:
 	$(OCAMLBUILD) -clean
@@ -23,7 +23,7 @@ test: _build/lib_test/nacl_runner
 install:
 	ocamlfind install sodium lib/META \
 		$(addprefix _build/lib/,sodium.mli sodium.cmi sodium.cmti \
-					sodium.cma sodium.cmxa \
+					sodium.cma sodium.cmxa sodium.cmxs \
 		                        sodium$(EXT_LIB) \
 					dllsodium_stubs$(EXT_DLL) \
 					libsodium_stubs$(EXT_LIB))
