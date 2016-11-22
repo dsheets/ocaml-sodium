@@ -25,7 +25,8 @@ remove: [["ocamlfind" "remove" "sodium"]]
 depends: [
   "base-bigarray"
   "base-bytes"
-  "ocamlfind"
+  "ocamlfind" {build}
+  "ocamlbuild" {build}
   "ctypes" {>= "0.4.0"}
 ]
 depexts: [
