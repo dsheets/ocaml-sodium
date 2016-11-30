@@ -10,6 +10,7 @@ module Bind(F: Cstubs.FOREIGN) = struct
   module Random' = BindStorage(Random.Make)
   module Box' = BindStorage(Box.Make)
   module Sign' = BindStorage(Sign.Make)
+  module Password_hash' = BindStorage(Password_hash.Make)
   module Secret_box' = BindStorage(Secret_box.Make)
   module Stream' = BindStorage(Stream.Make)
   module Hash' = BindStorage(Hash.Make)

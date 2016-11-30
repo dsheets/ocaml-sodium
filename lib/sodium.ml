@@ -485,6 +485,110 @@ module Scalar_mult = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
+module Password_hash = struct
+  module C = C.Password_hash
+  let primitive = C.primitive
+
+  type nonce = Bytes.t
+  type password = Bytes.t
+
+  type difficulty =
+    { mem_limit : int64 ;
+      ops_limit : int }
+
+  let interactive =
+    let mem_limit = Size_t.to_int64 (C.memlimit_interactive ()) in
+    let ops_limit = C.opslimit_interactive () in
+    { mem_limit ; ops_limit }
+
+  let moderate =
+    let mem_limit = Size_t.to_int64 (C.memlimit_moderate ()) in
+    let ops_limit = C.opslimit_moderate () in
+    { mem_limit ; ops_limit }
+
+  let sensitive =
+    let mem_limit = Size_t.to_int64 (C.memlimit_sensitive ()) in
+    let ops_limit = C.opslimit_sensitive () in
+    { mem_limit ; ops_limit }
+
+  let wipe_password = wipe
+
+  let nonce_size = Size_t.to_int (C.saltbytes ())
+
+  let random_nonce () =
+    Random.Bytes.generate nonce_size
+
+  let nonce_of_bytes b =
+    if Bytes.length b <> nonce_size then
+      raise (Size_mismatch "Box.nonce_of_bytes");
+    b
+
+  let password_hash_size = Size_t.to_int (C.strbytes ())
+
+  let derive_key key_size pw ({ ops_limit ; mem_limit }, nonce) =
+    let key = Bytes.create key_size in
+    let ret =
+      C.derive
+        (Storage.Bytes.to_ptr key) (ULLong.of_int key_size)
+        (Storage.Bytes.to_ptr pw) (Storage.Bytes.len_ullong pw)
+        (Storage.Bytes.to_ptr nonce)
+        (ULLong.of_int ops_limit) (Size_t.of_int64 mem_limit)
+        (C.alg ()) in
+    assert (ret = 0) (* always returns 0 *) ;
+    key
+
+  module type S = sig
+    type storage
+
+    val of_nonce : nonce -> storage
+    val to_nonce : storage -> nonce
+
+    val wipe_to_password : storage -> password
+
+    val hash_password : password -> difficulty -> storage
+    val verify_password_hash : password -> storage -> bool
+  end
+
+  module Make(T: Storage.S) = struct
+    module C = C.Make(T)
+    type storage = T.t
+
+    let of_nonce nonce =
+      T.of_bytes nonce
+
+    let to_nonce str =
+      if T.length str <> nonce_size then
+        raise (Size_mismatch "Password_hash.to_nonce");
+      T.to_bytes str
+
+    let wipe_to_password str =
+      let res = T.to_bytes str in
+      T.zero str 0 (T.length str);
+      res
+
+    let hash_password pw { ops_limit ; mem_limit } =
+      let str = T.create password_hash_size in
+      let ret =
+        C.hash
+          (T.to_ptr str)
+          (Storage.Bytes.to_ptr pw) (Storage.Bytes.len_ullong pw)
+          (ULLong.of_int ops_limit) (Size_t.of_int64 mem_limit) in
+      assert (ret = 0) (* always returns 0 *) ;
+      str
+
+    let verify_password_hash pw str =
+      let ret =
+        C.verify
+          (T.to_ptr str)
+          (Storage.Bytes.to_ptr pw) (Storage.Bytes.len_ullong pw) in
+      ret = 0
+
+  end
+
+  module Bytes = Make(Storage.Bytes)
+  module Bigbytes = Make(Storage.Bigbytes)
+end
+
 module Secret_box = struct
   module C = C.Secret_box
   let primitive = C.primitive
@@ -503,6 +607,8 @@ module Secret_box = struct
 
   let random_key () =
     Random.Bytes.generate key_size
+
+  let derive_key = Password_hash.derive_key key_size
 
   let random_nonce =
     if nonce_size > 8 then
@@ -604,6 +710,8 @@ module Stream = struct
   let random_key () =
     Random.Bytes.generate key_size
 
+  let derive_key = Password_hash.derive_key key_size
+
   let random_nonce =
     if nonce_size > 8 then
       fun () -> Random.Bytes.generate nonce_size
@@ -700,6 +808,8 @@ end) = struct
 
   let random_key () =
     Random.Bytes.generate key_size
+
+  let derive_key = Password_hash.derive_key key_size
 
   let wipe_key = wipe
 
@@ -839,6 +949,11 @@ module Generichash = struct
 
   let random_key () =
     Random.Bytes.generate key_size_default
+
+  let derive_key key_size =
+    if key_size < key_size_min || key_size > key_size_max then
+      raise (Size_mismatch "Generichash.derive_key");
+    Password_hash.derive_key key_size
 
   type hash = Bytes.t
   type state = {

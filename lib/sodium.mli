@@ -368,6 +368,93 @@ module Sign : sig
   module Bigbytes : S with type storage = bigbytes
 end
 
+module Password_hash : sig
+  type nonce
+  type password
+
+  (** Parameters of the {!primitive} algorithm used to derive secret
+      keys and hash passwords into safely storable imprints. This
+      algorithm generates data (the secret key or the imprint) from a
+      human chosen password and a nonce using a time and memory
+      consuming algorithm to prevent bruteforce attacks. *)
+  type difficulty =
+    { (** The amount of memory used by the algorithm.
+          The more memory the better. *)
+      mem_limit : int64 ;
+      (** The number of passes of the algorithm over the memory.
+          The more passes the better, to be adjusted to the type of
+          application. *)
+      ops_limit : int }
+
+  (** The base line of difficulty, for online, interactive
+      applications. Currently 3 passes over 32MiB. *)
+  val interactive        : difficulty
+
+  (** Currently 6 passes and 128MiB. *)
+  val moderate           : difficulty
+
+  (** For highly sensitive data and non-interactive operations.
+      Currently 8 passes over 512MiB. Takes about 3.5 seconds on a 2.8
+      Ghz Core i7 CPU. *)
+  val sensitive          : difficulty
+
+  (** Primitive used by this implementation. Currently ["argon2i"]. *)
+  val primitive           : string
+
+  (** [wipe_password pw] overwrites [pw] with zeroes. *)
+  val wipe_password      : password -> unit
+
+  (** Size of password hashes, in bytes. *)
+  val password_hash_size : int
+
+  (** Size of nonces, in bytes. *)
+  val nonce_size         : int
+
+  (** [random_nonce ()] generates a random nonce. *)
+  val random_nonce       : unit -> nonce
+
+  (** [nonce_of_bytes b] creates a nonce out of bytes [b].
+
+      @raise Size_mismatch if [b] is not {!nonce_size} bytes long *)
+  val nonce_of_bytes     : Bytes.t -> nonce
+
+  module type S = sig
+    type storage
+
+    (** [of_nonce n] converts [n] to {!storage}. The result is
+        {!nonce_size} bytes long. *)
+    val of_nonce             : nonce -> storage
+
+    (** [to_nonce s] converts [s] to a nonce.
+
+        @raise Size_mismatch if [s] is not {!nonce_size} bytes long *)
+    val to_nonce             : storage -> nonce
+
+    (** [to_password s] copies a password from its {!storage} version
+        and wipes [s]. *)
+    val wipe_to_password     : storage -> password
+
+    (** [hash_password pw] uses the key derivation algorithm to create
+        a safely storable imprint of the password of size
+        {!password_hash_size}. It randomly generates a nonce, and
+        stores the result of the derivation, along with the nonce and
+        parameters, so that {!verify_password} can then verify that
+        the imprint. *)
+    val hash_password        : password -> difficulty -> storage
+
+    (** [check_password s] uses the key derivation algorithm to check
+        that a safely storable password hash actually matches the password.
+
+        @raise Size_mismatch if [s] is not {!password_hash_size} bytes long *)
+    val verify_password_hash : password -> storage -> bool
+
+  end
+
+  module Bytes : S with type storage = Bytes.t
+  module Bigbytes : S with type storage = bigbytes
+
+end
+
 module Secret_box : sig
   type 'a key
   type secret_key = secret key
@@ -384,6 +471,15 @@ module Secret_box : sig
 
   (** [random_key ()] generates a random secret key . *)
   val random_key      : unit -> secret key
+
+  (** [derive_key pw params] derives a key from a human generated
+      password. Since the derivation depends on both [params], it is
+      necessary to store them alongside the ciphertext. Using
+      constants instead is considered very bad practice. *)
+  val derive_key      :
+    Password_hash.password ->
+    Password_hash.difficulty * Password_hash.nonce ->
+    secret_key
 
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
@@ -460,6 +556,15 @@ module Stream : sig
   (** [random_key ()] generates a random secret key . *)
   val random_key      : unit -> secret key
 
+  (** [derive_key pw params] derives a key from a human generated
+      password. Since the derivation depends on both [params], it is
+      necessary to store them alongside the ciphertext. Using
+      constants instead is considered very bad practice. *)
+  val derive_key      :
+    Password_hash.password ->
+    Password_hash.difficulty * Password_hash.nonce ->
+    secret_key
+
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
 
@@ -529,6 +634,15 @@ module Auth : sig
 
   (** [random_key ()] generates a random secret key . *)
   val random_key  : unit -> secret key
+
+  (** [derive_key pw params] derives a key from a human generated
+      password. Since the derivation depends on both [params], it is
+      necessary to store them alongside the ciphertext. Using
+      constants instead is considered very bad practice. *)
+  val derive_key  :
+    Password_hash.password ->
+    Password_hash.difficulty * Password_hash.nonce ->
+    secret_key
 
   (** [wipe_key k] overwrites [k] with zeroes. *)
   val wipe_key    : secret key -> unit
@@ -656,6 +770,20 @@ module Generichash : sig
   (** [random_key ()] generates a random secret key of
       {!key_size_default} bytes. *)
   val random_key       : unit -> secret key
+
+  (** [derive_key key_size pw params] derives a key of length
+      [key_size] from a human generated password. Since the derivation
+      depends on both [params], it is necessary to store them
+      alongside the ciphertext. Using constants instead is considered
+      very bad practice.
+
+      @raise Size_mismatch if [key_size] is greater than {!key_size_max} or
+      less than {!key_size_min} *)
+  val derive_key       :
+    int ->
+    Password_hash.password ->
+    Password_hash.difficulty * Password_hash.nonce ->
+    secret_key
 
   (** [init ?key ?size ()] is a streaming hash state keyed with [key]
       if supplied and computing a hash of size [size] (default
