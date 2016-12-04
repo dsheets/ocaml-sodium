@@ -1,6 +1,4 @@
 open Ctypes
-open Unsigned
-open PosixTypes
 
 type bigbytes =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -16,8 +14,8 @@ module type S = sig
   val blit       : t -> int -> t -> int -> int -> unit
   val sub        : t -> int -> int -> t
   val length     : t -> int
-  val len_size_t : t -> size_t
-  val len_ullong : t -> ullong
+  val len_size_t : t -> PosixTypes.size_t
+  val len_ullong : t -> Unsigned.ullong
   val to_ptr     : t -> ctype
   val to_bytes   : t -> Bytes.t
   val of_bytes   : Bytes.t -> t
@@ -67,6 +65,7 @@ module Bytes = struct
   let len_ullong byt = Unsigned.ULLong.of_int (Bytes.length byt)
   let to_ptr     byt = ocaml_bytes_start byt
   let zero       byt pos len = Bytes.fill byt pos len '\x00'
+
   let to_bytes   byt = Bytes.copy byt
   let of_bytes   byt = Bytes.copy byt
   let sub            = Bytes.sub

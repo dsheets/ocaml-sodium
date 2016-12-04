@@ -33,9 +33,11 @@ type bigbytes = Storage.bigbytes
 
 module C = Sodium_bindings.C(Sodium_generated)
 module Type = Sodium_types.C(Sodium_types_detected)
+module Sodium_bytes = C.Make(Storage.Bytes)
 
 let wipe str =
-  C.memzero (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
+  Sodium_bytes.memzero
+    (Storage.Bytes.to_ptr str) (Storage.Bytes.len_size_t str)
 
 let memcpy ~dest ~src typ =
   let size = sizeof typ in
@@ -270,7 +272,7 @@ module Sign = struct
   type public_key = public key
   type keypair = secret key * public key
 
-  (* Invariant: an auth is signature_size bytes long. *)
+  (* Invariant: a signature is signature_size bytes long. *)
   type signature = Bytes.t
 
   (* Invariant: a seed is seed_size bytes long. *)
@@ -486,97 +488,100 @@ module Scalar_mult = struct
 end
 
 module Password_hash = struct
+  module Sodium = C
   module C = C.Password_hash
   let primitive = C.primitive
 
-  type nonce = Bytes.t
+  let salt_size = Size_t.to_int (C.saltbytes ())
+  let password_hash_size = Size_t.to_int (C.strbytes ())
+
+  (* Invariant: a salt is salt_size bytes long. *)
+  type salt = Bytes.t
   type password = Bytes.t
 
-  type difficulty =
-    { mem_limit : int64 ;
-      ops_limit : int }
+  type difficulty = {
+    mem_limit : int64;
+    ops_limit : int;
+  }
 
   let interactive =
     let mem_limit = Size_t.to_int64 (C.memlimit_interactive ()) in
     let ops_limit = C.opslimit_interactive () in
-    { mem_limit ; ops_limit }
+    { mem_limit; ops_limit; }
 
   let moderate =
     let mem_limit = Size_t.to_int64 (C.memlimit_moderate ()) in
     let ops_limit = C.opslimit_moderate () in
-    { mem_limit ; ops_limit }
+    { mem_limit; ops_limit; }
 
   let sensitive =
     let mem_limit = Size_t.to_int64 (C.memlimit_sensitive ()) in
     let ops_limit = C.opslimit_sensitive () in
-    { mem_limit ; ops_limit }
+    { mem_limit; ops_limit; }
 
   let wipe_password = wipe
 
-  let nonce_size = Size_t.to_int (C.saltbytes ())
+  let random_salt () =
+    Random.Bytes.generate salt_size
 
-  let random_nonce () =
-    Random.Bytes.generate nonce_size
-
-  let nonce_of_bytes b =
-    if Bytes.length b <> nonce_size then
-      raise (Size_mismatch "Box.nonce_of_bytes");
+  let salt_of_bytes b =
+    if Bytes.length b <> salt_size then
+      raise (Size_mismatch "Password_hash.salt_of_bytes");
     b
 
-  let password_hash_size = Size_t.to_int (C.strbytes ())
-
-  let derive_key key_size pw ({ ops_limit ; mem_limit }, nonce) =
+  let derive_key key_size { ops_limit; mem_limit; } pw salt =
     let key = Bytes.create key_size in
     let ret =
       C.derive
         (Storage.Bytes.to_ptr key) (ULLong.of_int key_size)
         (Storage.Bytes.to_ptr pw) (Storage.Bytes.len_ullong pw)
-        (Storage.Bytes.to_ptr nonce)
+        (Storage.Bytes.to_ptr salt)
         (ULLong.of_int ops_limit) (Size_t.of_int64 mem_limit)
         (C.alg ()) in
-    assert (ret = 0) (* always returns 0 *) ;
+    assert (ret = 0); (* always returns 0 *)
     key
 
   module type S = sig
     type storage
 
-    val of_nonce : nonce -> storage
-    val to_nonce : storage -> nonce
+    val of_salt : salt -> storage
+    val to_salt : storage -> salt
 
     val wipe_to_password : storage -> password
 
-    val hash_password : password -> difficulty -> storage
-    val verify_password_hash : password -> storage -> bool
+    val hash_password : difficulty -> password -> storage
+    val verify_password_hash : storage -> password -> bool
   end
 
   module Make(T: Storage.S) = struct
     module C = C.Make(T)
+    module Sodium = Sodium.Make(T)
     type storage = T.t
 
-    let of_nonce nonce =
-      T.of_bytes nonce
+    let of_salt salt =
+      T.of_bytes salt
 
-    let to_nonce str =
-      if T.length str <> nonce_size then
-        raise (Size_mismatch "Password_hash.to_nonce");
+    let to_salt str =
+      if T.length str <> salt_size then
+        raise (Size_mismatch "Password_hash.to_salt");
       T.to_bytes str
 
     let wipe_to_password str =
       let res = T.to_bytes str in
-      T.zero str 0 (T.length str);
+      Sodium.memzero (T.to_ptr str) (T.len_size_t str);
       res
 
-    let hash_password pw { ops_limit ; mem_limit } =
+    let hash_password { ops_limit; mem_limit; } pw =
       let str = T.create password_hash_size in
       let ret =
         C.hash
           (T.to_ptr str)
           (Storage.Bytes.to_ptr pw) (Storage.Bytes.len_ullong pw)
           (ULLong.of_int ops_limit) (Size_t.of_int64 mem_limit) in
-      assert (ret = 0) (* always returns 0 *) ;
+      assert (ret = 0); (* always returns 0 *)
       str
 
-    let verify_password_hash pw str =
+    let verify_password_hash str pw =
       let ret =
         C.verify
           (T.to_ptr str)

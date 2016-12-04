@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2014 Peter Zotov <whitequark@whitequark.org>
+ * Copyright (c) 2016 Benjamin Canou <benjamin@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,16 +24,18 @@ let password str =
 let test_derive_secret_box_keys ctxt =
   let pw  = password "Correct Horse Battery Staple" in
   let pw' = password "Correct Battery Horse Staple" in
-  let n = Password_hash.random_nonce () in
-  let n' = Password_hash.random_nonce () in
-  let sk = Secret_box.derive_key pw (Password_hash.interactive, n) in
-  let sk2 = Secret_box.derive_key pw (Password_hash.interactive, n) in
-  let sk' = Secret_box.derive_key pw (Password_hash.interactive, n') in
-  let sk'2 = Secret_box.derive_key pw (Password_hash.interactive, n') in
-  let sk'' = Secret_box.derive_key pw (Password_hash.moderate, n) in
-  let sk''2 = Secret_box.derive_key pw (Password_hash.moderate, n) in
-  let sk''' = Secret_box.derive_key pw' (Password_hash.interactive, n) in
-  let sk'''2 = Secret_box.derive_key pw' (Password_hash.interactive, n) in
+  let n = Password_hash.random_salt () in
+  let n' = Password_hash.random_salt () in
+  let derive_interactive = Secret_box.derive_key Password_hash.interactive in
+  let derive_moderate = Secret_box.derive_key Password_hash.moderate in
+  let sk = derive_interactive pw n in
+  let sk2 = derive_interactive pw n in
+  let sk' = derive_interactive pw n' in
+  let sk'2 = derive_interactive pw n' in
+  let sk'' = derive_moderate pw n in
+  let sk''2 = derive_moderate pw n in
+  let sk''' = derive_interactive pw' n in
+  let sk'''2 = derive_interactive pw' n in
   assert_bool "=" (Secret_box.equal_keys sk sk);
   assert_bool "=" (Secret_box.equal_keys sk sk2);
   assert_bool "=" (Secret_box.equal_keys sk' sk'2);
@@ -46,9 +48,9 @@ let test_derive_secret_box_keys ctxt =
 let test_password_hashing ctxt =
   let pw  = password "Correct Horse Battery Staple" in
   let pw' = password "Correct Battery Horse Staple" in
-  let h = Password_hash.Bytes.hash_password pw Password_hash.interactive in
-  assert_bool "=" (Password_hash.Bytes.verify_password_hash pw h);
-  assert_bool "<>" (not (Password_hash.Bytes.verify_password_hash pw' h))
+  let h = Password_hash.Bytes.hash_password Password_hash.interactive pw in
+  assert_bool "=" (Password_hash.Bytes.verify_password_hash h pw);
+  assert_bool "<>" (not (Password_hash.Bytes.verify_password_hash h pw'))
 
 let suite = "Password_hash" >::: [
     "test_password_hashing"             >:: test_password_hashing;

@@ -24,8 +24,12 @@ module C(F: Cstubs.FOREIGN) = struct
   let prefix = "sodium"
 
   let init    = F.(foreign (prefix^"_init")    (void @-> returning int))
-  let memzero = F.(foreign (prefix^"_memzero") (ocaml_bytes @-> size_t @-> returning void))
   let memcmp  = F.(foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning int))
+
+  module Make(T: Sodium_storage.S) = struct
+    let memzero =
+      F.(foreign (prefix^"_memzero") (T.ctype @-> size_t @-> returning void))
+  end
 
   module Verify = struct
     let verify_type = F.(ocaml_bytes @-> ocaml_bytes @-> returning int)
@@ -150,19 +154,18 @@ module C(F: Cstubs.FOREIGN) = struct
     let strbytes        = F.foreign (prefix^"_strbytes") sz_query_type
 
     let query_memlimit name =
-      F.foreign (prefix^"_memlimit_" ^ name) F.(void @-> returning size_t)
+      F.foreign (prefix^"_memlimit_"^name) sz_query_type
 
     let memlimit_interactive = query_memlimit "interactive"
     let memlimit_moderate = query_memlimit "moderate"
     let memlimit_sensitive = query_memlimit "sensitive"
 
     let query_opslimit name =
-      F.foreign (prefix^"_opslimit_" ^ name) F.(void @-> returning int)
+      F.foreign (prefix^"_opslimit_"^name) F.(void @-> returning int)
 
     let opslimit_interactive = query_opslimit "interactive"
     let opslimit_moderate = query_opslimit "moderate"
     let opslimit_sensitive = query_opslimit "sensitive"
-
 
     let alg = F.foreign (prefix^"_alg_argon2i13")  F.(void @-> returning int)
 
@@ -178,7 +181,6 @@ module C(F: Cstubs.FOREIGN) = struct
           F.(T.ctype @-> (* hash *)
              ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
              returning int)
-
     end
 
     let derive = F.foreign prefix
@@ -188,7 +190,6 @@ module C(F: Cstubs.FOREIGN) = struct
            ullong @-> size_t @-> (* opslimit, memlimit *)
            int @-> (* alg *)
            returning int)
-
   end
 
   module Secret_box = struct
