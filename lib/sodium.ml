@@ -950,7 +950,6 @@ module Generichash = struct
 end
 
 let initialized = match C.init () with
-  0 -> true
-  | 1 -> true
+  | 0 | 1 -> true
   | -1 -> false
-  | _ -> assert false
+  | _ -> failwith "libsodium initialization failed unexpectedly"
