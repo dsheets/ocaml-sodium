@@ -5,6 +5,7 @@ maintainer: "sheets@alum.mit.edu"
 authors: [
   "David Sheets <sheets@alum.mit.edu>"
   "Peter Zotov <whitequark@whitequark.org>"
+  "Benjamin Canou <benjamin@ocamlpro.com>"
 ]
 homepage: "https://github.com/dsheets/ocaml-sodium/"
 bug-reports: "https://github.com/dsheets/ocaml-sodium/issues/"

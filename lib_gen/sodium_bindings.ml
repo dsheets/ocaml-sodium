@@ -24,8 +24,12 @@ module C(F: Cstubs.FOREIGN) = struct
   let prefix = "sodium"
 
   let init    = F.(foreign (prefix^"_init")    (void @-> returning int))
-  let memzero = F.(foreign (prefix^"_memzero") (ocaml_bytes @-> size_t @-> returning void))
   let memcmp  = F.(foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning int))
+
+  module Make(T: Sodium_storage.S) = struct
+    let memzero =
+      F.(foreign (prefix^"_memzero") (T.ctype @-> size_t @-> returning void))
+  end
 
   module Verify = struct
     let verify_type = F.(ocaml_bytes @-> ocaml_bytes @-> returning int)
@@ -139,6 +143,53 @@ module C(F: Cstubs.FOREIGN) = struct
                                      @-> returning int))
     let scalarmult_base = F.(foreign (prefix^"_base")
                                     (ocaml_bytes @-> ocaml_bytes @-> returning int))
+  end
+
+  module Password_hash = struct
+    let primitive = "argon2i"
+    let prefix    = "crypto_pwhash_"^primitive
+
+    let sz_query_type   = F.(void @-> returning size_t)
+    let saltbytes       = F.foreign (prefix^"_saltbytes") sz_query_type
+    let strbytes        = F.foreign (prefix^"_strbytes") sz_query_type
+
+    let query_memlimit name =
+      F.foreign (prefix^"_memlimit_"^name) sz_query_type
+
+    let memlimit_interactive = query_memlimit "interactive"
+    let memlimit_moderate = query_memlimit "moderate"
+    let memlimit_sensitive = query_memlimit "sensitive"
+
+    let query_opslimit name =
+      F.foreign (prefix^"_opslimit_"^name) F.(void @-> returning int)
+
+    let opslimit_interactive = query_opslimit "interactive"
+    let opslimit_moderate = query_opslimit "moderate"
+    let opslimit_sensitive = query_opslimit "sensitive"
+
+    let alg = F.foreign (prefix^"_alg_argon2i13")  F.(void @-> returning int)
+
+    module Make(T: Sodium_storage.S) = struct
+
+      let hash = F.foreign (prefix^"_str")
+          F.(T.ctype @-> (* hash *)
+             ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+             ullong @-> size_t @-> (* opslimit, memlimit *)
+             returning int)
+
+      let verify = F.foreign (prefix^"_str_verify")
+          F.(T.ctype @-> (* hash *)
+             ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+             returning int)
+    end
+
+    let derive = F.foreign prefix
+        F.(ocaml_bytes @-> ullong @-> (* out, outlen *)
+           ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+           ocaml_bytes @-> (* salt *)
+           ullong @-> size_t @-> (* opslimit, memlimit *)
+           int @-> (* alg *)
+           returning int)
   end
 
   module Secret_box = struct

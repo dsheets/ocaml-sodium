@@ -368,6 +368,92 @@ module Sign : sig
   module Bigbytes : S with type storage = bigbytes
 end
 
+module Password_hash : sig
+  type salt
+  type password
+
+  (** Primitive used by this implementation. Currently ["argon2i"]. *)
+  val primitive          : string
+
+  (** Size of password hashes, in bytes. *)
+  val password_hash_size : int
+
+  (** Size of salts, in bytes. *)
+  val salt_size          : int
+
+  (** Parameters of the {!primitive} algorithm used to derive secret
+      keys and hash passwords. This algorithm generates data (the
+      secret key or the hash) from a human chosen password and a salt
+      using a time and memory consuming algorithm to prevent
+      bruteforce attacks. *)
+  type difficulty = {
+    mem_limit : int64; (** The amount of memory used by the algorithm.
+                           The more memory the better. *)
+    ops_limit : int; (** The number of passes of the algorithm over
+                         the memory.  The more passes the better, to
+                         be adjusted to the type of application. *)
+  }
+
+  (** The base line of difficulty, for online, interactive
+      applications. Currently 3 passes over 32MiB. *)
+  val interactive        : difficulty
+
+  (** Currently 6 passes and 128MiB. *)
+  val moderate           : difficulty
+
+  (** For highly sensitive data and non-interactive operations.
+      Currently 8 passes over 512MiB. Takes about 3.5 seconds on a 2.8
+      Ghz Core i7 CPU. *)
+  val sensitive          : difficulty
+
+  (** [wipe_password pw] overwrites [pw] with zeroes. *)
+  val wipe_password      : password -> unit
+
+  (** [random_salt ()] generates a random salt. *)
+  val random_salt        : unit -> salt
+
+  (** [salt_of_bytes b] creates a salt out of bytes [b].
+
+      @raise Size_mismatch if [b] is not {!salt_size} bytes long *)
+  val salt_of_bytes     : Bytes.t -> salt
+
+  module type S = sig
+    type storage
+
+    (** [of_salt s] converts [s] to {!storage}. The result is
+        {!salt_size} bytes long. *)
+    val of_salt              : salt -> storage
+
+    (** [to_salt s] converts [s] to a salt.
+
+        @raise Size_mismatch if [s] is not {!salt_size} bytes long *)
+    val to_salt              : storage -> salt
+
+    (** [wipe_to_password s] copies a password [s] from {!storage} and
+        wipes [s]. *)
+    val wipe_to_password     : storage -> password
+
+    (** [hash_password d pw] uses the key derivation algorithm to
+        create a safely storable hash of the password of size
+        {!password_hash_size}. It randomly generates a salt, and
+        stores the result of the derivation, along with the salt and
+        parameters [d], so that {!verify_password} can later verify
+        the hash. *)
+    val hash_password        : difficulty -> password -> storage
+
+    (** [verify_password_hash h p] uses the key derivation algorithm to
+        check that a safely storable password hash [h] actually matches
+        the password [p].
+
+        @raise Size_mismatch if [h] is not {!password_hash_size} bytes long *)
+    val verify_password_hash : storage -> password -> bool
+
+  end
+
+  module Bytes : S with type storage = Bytes.t
+  module Bigbytes : S with type storage = bigbytes
+end
+
 module Secret_box : sig
   type 'a key
   type secret_key = secret key
@@ -384,6 +470,18 @@ module Secret_box : sig
 
   (** [random_key ()] generates a random secret key . *)
   val random_key      : unit -> secret key
+
+  (** [derive_key difficulty pw salt] derives a key from a human
+      generated password. Since the derivation depends on both
+      [difficulty] and [salt], it is necessary to store them alongside
+      the ciphertext. Using a constant salt is insecure because it
+      increases the effectiveness of rainbow tables. Generate the salt
+      with a function like {!Password_hash.random_salt} instead. *)
+  val derive_key      :
+    Password_hash.difficulty ->
+    Password_hash.password ->
+    Password_hash.salt ->
+    secret_key
 
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
@@ -457,8 +555,20 @@ module Stream : sig
   (** Size of nonces, in bytes. *)
   val nonce_size      : int
 
-  (** [random_key ()] generates a random secret key . *)
+  (** [random_key ()] generates a random secret key. *)
   val random_key      : unit -> secret key
+
+  (** [derive_key difficulty pw salt] derives a key from a human
+      generated password. Since the derivation depends on both
+      [difficulty] and [salt], it is necessary to store them alongside
+      the ciphertext. Using a constant salt is insecure because it
+      increases the effectiveness of rainbow tables. Generate the salt
+      with a function like {!Password_hash.random_salt} instead. *)
+  val derive_key      :
+    Password_hash.difficulty ->
+    Password_hash.password ->
+    Password_hash.salt ->
+    secret_key
 
   (** [random_nonce ()] generates a random nonce. *)
   val random_nonce    : unit -> nonce
@@ -529,6 +639,18 @@ module Auth : sig
 
   (** [random_key ()] generates a random secret key . *)
   val random_key  : unit -> secret key
+
+  (** [derive_key difficulty pw salt] derives a key from a human
+      generated password. Since the derivation depends on both
+      [difficulty] and [salt], it is necessary to store them alongside
+      the authenticator. Using a constant salt is insecure because it
+      increases the effectiveness of rainbow tables. Generate the salt
+      with a function like {!Password_hash.random_salt} instead. *)
+  val derive_key      :
+    Password_hash.difficulty ->
+    Password_hash.password ->
+    Password_hash.salt ->
+    secret_key
 
   (** [wipe_key k] overwrites [k] with zeroes. *)
   val wipe_key    : secret key -> unit
@@ -656,6 +778,23 @@ module Generichash : sig
   (** [random_key ()] generates a random secret key of
       {!key_size_default} bytes. *)
   val random_key       : unit -> secret key
+
+  (** [derive_key key_size difficulty pw salt] derives a key of length
+      [key_size] from a human generated password. Since the derivation
+      depends on both [difficulty] and [salt], it is necessary to
+      store them alongside the hash. Using a constant salt is insecure
+      because it increases the effectiveness of rainbow
+      tables. Generate the salt with a function like
+      {!Password_hash.random_salt} instead.
+
+      @raise Size_mismatch if [key_size] is greater than {!key_size_max} or
+      less than {!key_size_min} *)
+  val derive_key      :
+    int ->
+    Password_hash.difficulty ->
+    Password_hash.password ->
+    Password_hash.salt ->
+    secret_key
 
   (** [init ?key ?size ()] is a streaming hash state keyed with [key]
       if supplied and computing a hash of size [size] (default
