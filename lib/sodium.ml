@@ -215,7 +215,10 @@ module Box = struct
       T.zero a' 0 apad;
       T.blit a  0 a' apad (T.length a);
       f a' b';
-      T.sub b' bpad ((T.length b') - bpad)
+      let res = T.sub b' bpad ((T.length b') - bpad) in
+      T.zero a' 0 (T.length a') ;
+      T.zero b' 0 (T.length b') ;
+      res
 
     let box skey pkey message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
@@ -675,7 +678,10 @@ module Secret_box = struct
       T.zero a' 0 apad;
       T.blit a  0 a' apad (T.length a);
       f a' b';
-      T.sub b' bpad ((T.length b') - bpad)
+      let res = T.sub b' bpad ((T.length b') - bpad) in
+      T.zero a' 0 (T.length a') ;
+      T.zero b' 0 (T.length b') ;
+      res
 
     let secret_box key message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
