@@ -19,6 +19,10 @@ module type S = sig
   val to_ptr     : t -> ctype
   val to_bytes   : t -> Bytes.t
   val of_bytes   : Bytes.t -> t
+  val blit_bytes : Bytes.t -> int -> t -> int -> int -> unit
+  val blit_bigbytes : bigbytes -> int -> t -> int -> int -> unit
+  val blit_to_bytes : t -> int -> Bytes.t -> int -> int -> unit
+  val blit_to_bigbytes : t -> int -> bigbytes -> int -> int -> unit
 end
 
 module Bigbytes = struct
@@ -51,6 +55,18 @@ module Bigbytes = struct
   let blit src srcoff dst dstoff len =
     Array1.blit (Array1.sub src srcoff len)
                 (Array1.sub dst dstoff len)
+
+  let blit_bigbytes = blit
+  let blit_to_bigbytes = blit
+
+  let blit_bytes src srcoff dst dstoff len =
+    for i = 0 to len - 1 do
+      Array1.set dst (dstoff + i) (Bytes.get src (srcoff + i))
+    done
+  let blit_to_bytes src srcoff dst dstoff len =
+    for i = 0 to len - 1 do
+      Bytes.set dst (dstoff + i) (Array1.get src (srcoff + i))
+    done
 end
 
 module Bytes = struct
@@ -70,4 +86,16 @@ module Bytes = struct
   let of_bytes   byt = Bytes.copy byt
   let sub            = Bytes.sub
   let blit           = Bytes.blit
+
+  let blit_bytes = blit
+  let blit_to_bytes = blit
+
+  let blit_bigbytes src srcoff dst dstoff len =
+    for i = 0 to len - 1 do
+      Bytes.set dst (dstoff + i) (Bigarray.Array1.get src (srcoff + i))
+    done
+  let blit_to_bigbytes src srcoff dst dstoff len =
+    for i = 0 to len - 1 do
+      Bigarray.Array1.set dst (dstoff + i) (Bytes.get src (srcoff + i))
+    done
 end
