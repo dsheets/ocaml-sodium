@@ -179,6 +179,26 @@ module Random = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
+module Padding(T: Storage.S)(M: MEMPROTECT with type storage = T.t) : sig
+  val padded_exec : T.t -> int -> int -> (bigbytes -> bigbytes -> unit) -> T.t
+end = struct
+  let padded_exec a apad bpad f =
+    let len = apad + T.length a in
+    let a' = Storage.Bigbytes.create len in
+    let b' = Storage.Bigbytes.create len in
+    Memprotect_bigbytes.protect a' ;
+    Memprotect_bigbytes.protect b' ;
+    let res = T.create (len - bpad) in
+    M.protect res ;
+    Storage.Bigbytes.zero a' 0 apad;
+    T.blit_to_bigbytes a 0 a' apad (T.length a);
+    f a' b';
+    Memprotect_bigbytes.wipe a' ;
+    T.blit_bigbytes b' bpad res 0 (len - bpad) ;
+    Memprotect_bigbytes.wipe b' ;
+    res
+end
+
 module Box = struct
   module C = C.Box
   let primitive = C.primitive
@@ -270,7 +290,7 @@ module Box = struct
   end
 
   module Make(T: Storage.S)(M: MEMPROTECT with type storage = T.t) = struct
-    module C = C.Make(T)
+    module C = C.Make(Storage.Bigbytes)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -304,24 +324,15 @@ module Box = struct
       verify_length str nonce_size "Box.to_nonce";
       T.to_bytes str
 
-    let pad a apad bpad f =
-      let a' = T.create (apad + T.length a) in
-      let b' = T.create (T.length a') in
-      M.protect a' ; M.protect b' ;
-      T.zero a' 0 apad;
-      T.blit a  0 a' apad (T.length a);
-      f a' b';
-      let len = (T.length b') - bpad in
-      let res = T.create len in
-      M.protect res ;
-      T.blit b' bpad res 0 len ;
-      M.wipe a' ; M.wipe b' ;
-      res
+    let pad =
+      let module P = Padding(T)(M) in
+      P.padded_exec
 
     let box (Sk skey) (Pk pkey) message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
-        let ret = C.box (T.to_ptr ciphertext) (T.to_ptr cleartext)
-                        (T.len_ullong cleartext)
+        let ret = C.box (Storage.Bigbytes.to_ptr ciphertext)
+                        (Storage.Bigbytes.to_ptr cleartext)
+                        (Storage.Bigbytes.len_ullong cleartext)
                         (Storage.Bytes.to_ptr nonce)
                         (Storage.Bytes.to_ptr pkey)
                         (Storage.Bigbytes.to_ptr skey) in
@@ -329,8 +340,9 @@ module Box = struct
 
     let box_open (Sk skey) (Pk pkey) ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
-        let ret = C.box_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
-                             (T.len_ullong ciphertext)
+        let ret = C.box_open (Storage.Bigbytes.to_ptr cleartext)
+                             (Storage.Bigbytes.to_ptr ciphertext)
+                             (Storage.Bigbytes.len_ullong ciphertext)
                              (Storage.Bytes.to_ptr nonce)
                              (Storage.Bytes.to_ptr pkey)
                              (Storage.Bigbytes.to_ptr skey) in
@@ -338,16 +350,18 @@ module Box = struct
 
     let fast_box (Ck params) message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
-        let ret = C.box_afternm (T.to_ptr ciphertext) (T.to_ptr cleartext)
-                                (T.len_ullong cleartext)
+        let ret = C.box_afternm (Storage.Bigbytes.to_ptr ciphertext)
+                                (Storage.Bigbytes.to_ptr cleartext)
+                                (Storage.Bigbytes.len_ullong cleartext)
                                 (Storage.Bytes.to_ptr nonce)
                                 (Storage.Bigbytes.to_ptr params) in
         assert (ret = 0) (* always returns 0 *))
 
     let fast_box_open (Ck params) ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
-        let ret = C.box_open_afternm (T.to_ptr cleartext) (T.to_ptr ciphertext)
-                                     (T.len_ullong ciphertext)
+        let ret = C.box_open_afternm (Storage.Bigbytes.to_ptr cleartext)
+                                     (Storage.Bigbytes.to_ptr ciphertext)
+                                     (Storage.Bigbytes.len_ullong ciphertext)
                                      (Storage.Bytes.to_ptr nonce)
                                      (Storage.Bigbytes.to_ptr params) in
         if ret <> 0 then raise Verification_failure)
@@ -768,7 +782,7 @@ module Secret_box = struct
   end
 
   module Make(T: Storage.S)(M: MEMPROTECT with type storage = T.t) = struct
-    module C = C.Make(T)
+    module C = C.Make(Storage.Bigbytes)
     type storage = T.t
 
     let verify_length str len fn_name =
@@ -788,32 +802,24 @@ module Secret_box = struct
       verify_length str nonce_size "Secret_box.to_nonce";
       T.to_bytes str
 
-    let pad a apad bpad f =
-      let a' = T.create (apad + T.length a) in
-      let b' = T.create (T.length a') in
-      M.protect a' ; M.protect b' ;
-      T.zero a' 0 apad;
-      T.blit a  0 a' apad (T.length a);
-      f a' b';
-      let len = (T.length b') - bpad in
-      let res = T.create len in
-      M.protect res ;
-      T.blit b' bpad res 0 len ;
-      M.wipe a' ; M.wipe b' ;
-      res
+    let pad =
+      let module P = Padding(T)(M) in
+      P.padded_exec
 
     let secret_box key message nonce =
       pad message zero_size box_zero_size (fun cleartext ciphertext ->
-        let ret = C.secretbox (T.to_ptr ciphertext) (T.to_ptr cleartext)
-                              (T.len_ullong cleartext)
+        let ret = C.secretbox (Storage.Bigbytes.to_ptr ciphertext)
+                              (Storage.Bigbytes.to_ptr cleartext)
+                              (Storage.Bigbytes.len_ullong cleartext)
                               (Storage.Bytes.to_ptr nonce)
                               (Storage.Bigbytes.to_ptr key) in
         assert (ret = 0) (* always returns 0 *))
 
     let secret_box_open key ciphertext nonce =
       pad ciphertext box_zero_size zero_size (fun ciphertext cleartext ->
-        let ret = C.secretbox_open (T.to_ptr cleartext) (T.to_ptr ciphertext)
-                                   (T.len_ullong ciphertext)
+        let ret = C.secretbox_open (Storage.Bigbytes.to_ptr cleartext)
+                                   (Storage.Bigbytes.to_ptr ciphertext)
+                                   (Storage.Bigbytes.len_ullong ciphertext)
                                    (Storage.Bytes.to_ptr nonce)
                                    (Storage.Bigbytes.to_ptr key) in
         if ret <> 0 then raise Verification_failure)
