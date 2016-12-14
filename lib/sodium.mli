@@ -39,8 +39,40 @@ type secret
     a public key. Such a key must be treated as a secret key. *)
 type channel
 
+(** Unlike with [Bytes.t], values of type [bigbytes] are allocated in
+    the C heap, and are never moved by the memory manager of OCaml
+    during the lifecycle of the program. This allows the functions
+    {!protect_bigbytes} and {!wipe_bigbytes} to work, preventing any
+    shadow copy of [bigbytes] by the memory manager, which may in the
+    worst case end up in the swap space of the hard disk.
+
+    All entities that are or contain secrets througout the library are
+    systematically stored as [bigbytes] under the hood, and protected
+    and wiped when needed.
+
+    For maximum security, we recommend that you use only [bigbytes] in
+    your own code for storing secrets, and that you use
+    {!protect_bigbytes} and {!wipe_bigbytes} so that secrets are wiped
+    from the memory as soon as possible. In the same vein, the library
+    sometimes provides two variants for functions for convenience, one
+    with [Bytes.t], the other with [bigbytes]. We recommend that you
+    never use the former in security critical contexts..*)
 type bigbytes =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+
+(** [protect_bigbytes bytes] protects a memory zone including the
+    contents of [bytes] from being swapped by the operating system.
+    The memory zone is automatically unprotected when the value is
+    freed by the garbage collector. At this point, it is also
+    automatically zeroed out, but it is highly recommended not to wait
+    for the automatic zeroing and to call {!wipe_bigbytes} as soon as
+    the secret becomes no more useful. Be also aware that this
+    automatic wiping is not performed when the program ends. *)
+val protect_bigbytes : bigbytes -> unit
+
+(** [wipe_bigbytes bytes] zeroes out the contents of [bytes]. *)
+val wipe_bigbytes : bigbytes -> unit
+
 
 module Random : sig
   val stir : unit -> unit
@@ -429,9 +461,11 @@ module Password_hash : sig
         @raise Size_mismatch if [s] is not {!salt_size} bytes long *)
     val to_salt              : storage -> salt
 
-    (** [wipe_to_password s] copies a password [s] from {!storage} and
-        wipes [s]. *)
-    val wipe_to_password     : storage -> password
+    (** [to_password s] copies [s] as a {!password}. *)
+    val to_password     : storage -> password
+
+    (** [of_password pw] copies a {!password} [pw] as {!storage}. *)
+    val of_password     : password -> storage
 
     (** [hash_password d pw] uses the key derivation algorithm to
         create a safely storable hash of the password of size

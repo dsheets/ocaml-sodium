@@ -26,16 +26,23 @@ module C(F: Cstubs.FOREIGN) = struct
   let init    = F.(foreign (prefix^"_init")    (void @-> returning int))
   let memcmp  = F.(foreign (prefix^"_memcmp")  (ocaml_bytes @-> ocaml_bytes @-> size_t @-> returning int))
 
+  let mlock =
+    F.(foreign (prefix^"_mlock") (ptr char @-> size_t @-> returning int))
+  let munlock =
+    F.(foreign (prefix^"_munlock") (ptr char @-> size_t @-> returning int))
+
   module Make(T: Sodium_storage.S) = struct
     let memzero =
       F.(foreign (prefix^"_memzero") (T.ctype @-> size_t @-> returning void))
   end
 
   module Verify = struct
-    let verify_type = F.(ocaml_bytes @-> ocaml_bytes @-> returning int)
-    let verify_16   = F.foreign "crypto_verify_16" verify_type
-    let verify_32   = F.foreign "crypto_verify_32" verify_type
-    let verify_64   = F.foreign "crypto_verify_64" verify_type
+    module Make(T: Sodium_storage.S) = struct
+      let verify_type = F.(T.ctype @-> T.ctype @-> returning int)
+      let verify_16   = F.foreign "crypto_verify_16" verify_type
+      let verify_32   = F.foreign "crypto_verify_32" verify_type
+      let verify_64   = F.foreign "crypto_verify_64" verify_type
+    end
   end
 
   module Random = struct
@@ -59,22 +66,22 @@ module C(F: Cstubs.FOREIGN) = struct
     let boxzerobytes     = F.foreign (prefix^"_boxzerobytes")   sz_query_type
 
     let box_keypair      = F.(foreign (prefix^"_keypair")
-                                     (ocaml_bytes @-> ocaml_bytes @-> returning int))
+                                     (ocaml_bytes @-> ptr char @-> returning int))
 
     let box_beforenm     = F.(foreign (prefix^"_beforenm")
-                                     (ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
+                                     (ptr char @-> ocaml_bytes @-> ptr char
                                       @-> returning int))
 
     module Make(T: Sodium_storage.S) = struct
       let box_fn_type      = F.(T.ctype @-> T.ctype @-> ullong
-                              @-> ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
+                              @-> ocaml_bytes @-> ocaml_bytes @-> ptr char
                               @-> returning int)
 
       let box              = F.foreign (prefix) box_fn_type
       let box_open         = F.foreign (prefix^"_open") box_fn_type
 
       let box_afternm_type = F.(T.ctype @-> T.ctype @-> ullong
-                              @-> ocaml_bytes @-> ocaml_bytes @-> returning int)
+                              @-> ocaml_bytes @-> ptr char @-> returning int)
 
       let box_afternm      = F.foreign (prefix^"_afternm") box_afternm_type
       let box_open_afternm = F.foreign (prefix^"_open_afternm") box_afternm_type
@@ -92,34 +99,37 @@ module C(F: Cstubs.FOREIGN) = struct
     let seedbytes       = F.foreign (prefix^"_seedbytes")      sz_query_type
 
     let sign_keypair    = F.(foreign (prefix^"_keypair")
-                                    (ocaml_bytes @-> ocaml_bytes
+                                    (ocaml_bytes @-> ptr char
                                      @-> returning int))
     let sign_seed_keypair = F.(foreign (prefix^"_seed_keypair")
-                                      (ocaml_bytes @-> ocaml_bytes @-> ocaml_bytes
+                                      (ocaml_bytes @-> ptr char @-> ptr char
                                        @-> returning int))
 
     let sign_sk_to_seed = F.(foreign (prefix^"_sk_to_seed")
-                                    (ocaml_bytes @-> ocaml_bytes
+                                    (ptr char @-> ptr char
                                      @-> returning int))
     let sign_sk_to_pk   = F.(foreign (prefix^"_sk_to_pk")
-                                    (ocaml_bytes @-> ocaml_bytes
+                                    (ocaml_bytes @-> ptr char
                                      @-> returning int))
 
-    let to_curve_25519_type = F.(ocaml_bytes @-> ocaml_bytes @-> returning int)
     let sign_pk_to_curve25519 = F.foreign (prefix^"_pk_to_curve25519")
-      to_curve_25519_type
+      F.(ocaml_bytes @-> ocaml_bytes @-> returning int)
     let sign_sk_to_curve25519 = F.foreign (prefix^"_sk_to_curve25519")
-      to_curve_25519_type
+      F.(ptr char @-> ptr char @-> returning int)
 
     module Make(T: Sodium_storage.S) = struct
-      let sign_fn_type    = F.(T.ctype @-> ptr ullong @-> T.ctype
-                             @-> ullong @-> ocaml_bytes @-> returning int)
+      let sign =
+        F.foreign (prefix)
+          F.(T.ctype @-> ptr ullong @-> T.ctype
+             @-> ullong @-> ptr char @-> returning int)
 
-      let sign            = F.foreign (prefix) sign_fn_type
-      let sign_open       = F.foreign (prefix^"_open") sign_fn_type
+      let sign_open =
+        F.foreign (prefix^"_open")
+          F.(T.ctype @-> ptr ullong @-> T.ctype
+             @-> ullong @-> ocaml_bytes @-> returning int)
 
       let sign_detached_type = F.(T.ctype @-> ptr_opt ullong @-> T.ctype
-                                @-> ullong @-> ocaml_bytes @-> returning int)
+                                @-> ullong @-> ptr char @-> returning int)
 
       let sign_detached   = F.foreign (prefix^"_detached") sign_detached_type
 
@@ -173,19 +183,19 @@ module C(F: Cstubs.FOREIGN) = struct
 
       let hash = F.foreign (prefix^"_str")
           F.(T.ctype @-> (* hash *)
-             ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+             ptr char @-> ullong @-> (* passwd, passwdlen *)
              ullong @-> size_t @-> (* opslimit, memlimit *)
              returning int)
 
       let verify = F.foreign (prefix^"_str_verify")
           F.(T.ctype @-> (* hash *)
-             ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+             ptr char @-> ullong @-> (* passwd, passwdlen *)
              returning int)
     end
 
     let derive = F.foreign prefix
-        F.(ocaml_bytes @-> ullong @-> (* out, outlen *)
-           ocaml_bytes @-> ullong @-> (* passwd, passwdlen *)
+        F.(ptr char @-> ullong @-> (* out, outlen *)
+           ptr char @-> ullong @-> (* passwd, passwdlen *)
            ocaml_bytes @-> (* salt *)
            ullong @-> size_t @-> (* opslimit, memlimit *)
            int @-> (* alg *)
@@ -204,7 +214,7 @@ module C(F: Cstubs.FOREIGN) = struct
 
     module Make(T: Sodium_storage.S) = struct
       let secretbox_fn_ty = F.(T.ctype @-> T.ctype @-> ullong
-                             @-> ocaml_bytes @-> ocaml_bytes @-> returning int)
+                             @-> ocaml_bytes @-> ptr char @-> returning int)
 
       let secretbox       = F.foreign (prefix)         secretbox_fn_ty
       let secretbox_open  = F.foreign (prefix^"_open") secretbox_fn_ty
@@ -222,10 +232,10 @@ module C(F: Cstubs.FOREIGN) = struct
     module Make(T: Sodium_storage.S) = struct
       let stream          = F.(foreign (prefix)
                                       (T.ctype @-> ullong @-> ocaml_bytes
-                                       @-> ocaml_bytes @-> returning int))
+                                       @-> ptr char @-> returning int))
       let stream_xor      = F.(foreign (prefix^"_xor")
                                       (T.ctype @-> T.ctype @-> ullong
-                                       @-> ocaml_bytes @-> ocaml_bytes @-> returning int))
+                                       @-> ocaml_bytes @-> ptr char @-> returning int))
     end
   end
 
@@ -242,7 +252,7 @@ module C(F: Cstubs.FOREIGN) = struct
 
     module Make(T: Sodium_storage.S) = struct
       let auth_fn_type  = F.(ocaml_bytes @-> T.ctype @-> ullong
-                           @-> ocaml_bytes @-> returning int)
+                           @-> ptr char @-> returning int)
 
       let auth          = F.foreign (prefix)           auth_fn_type
       let auth_verify   = F.foreign (prefix^"_verify") auth_fn_type
@@ -278,7 +288,7 @@ module C(F: Cstubs.FOREIGN) = struct
 
     let init          = F.(foreign (prefix^"_init")
                                   (    ptr Type.Generichash.state
-                                   @-> ocaml_bytes
+                                   @-> ptr char
                                    @-> size_t
                                    @-> size_t
                                    @-> returning int))
@@ -295,7 +305,7 @@ module C(F: Cstubs.FOREIGN) = struct
                             @-> size_t       (*  size_t out_len            *)
                             @-> T.ctype      (*  uchar* in                 *)
                             @-> ullong       (*  unsigned long long in_len *)
-                            @-> ocaml_bytes  (*  uchar* key                *)
+                            @-> ptr char     (*  uchar* key                *)
                             @-> size_t       (*  size_t keylen             *)
                             @-> returning int))
 

@@ -19,7 +19,7 @@ open OUnit2
 open Sodium
 
 let password str =
-  Password_hash.Bytes.wipe_to_password (Bytes.of_string str)
+  Password_hash.Bytes.to_password (Bytes.of_string str)
 
 let test_derive_secret_box_keys ctxt =
   let pw  = password "Correct Horse Battery Staple" in
