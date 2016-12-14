@@ -31,42 +31,52 @@ module Bigbytes = struct
 
   let ctype = ptr char
 
-  open Bigarray
+  module Array1 = Bigarray.Array1
 
-  let create     len = (Array1.create char c_layout len)
+  let create     len = Array1.create Bigarray.char Bigarray.c_layout len
   let length     str = Array1.dim str
   let len_size_t str = Unsigned.Size_t.of_int (Array1.dim str)
   let len_ullong str = Unsigned.ULLong.of_int (Array1.dim str)
   let to_ptr     str = bigarray_start array1 str
   let zero       str pos len = (Array1.fill (Array1.sub str pos len) '\x00')
 
-  let to_bytes str =
-    let str' = Bytes.create (Array1.dim str) in
-    Bytes.iteri (fun i _ -> Bytes.set str' i (Array1.unsafe_get str i)) str';
-    str'
+  let to_bytes src =
+    let len = length src in
+    let dst = Bytes.create len in
+    Memcpy.memcpy
+      (Memcpy.bigarray Ctypes.array1 len Bigarray.char) Memcpy.ocaml_bytes
+      ~src ~src_off: 0 ~dst ~dst_off: 0 ~len;
+    dst
 
-  let of_bytes str =
-    let str' = create (Bytes.length str) in
-    Bytes.iteri (Array1.unsafe_set str') str;
-    str'
+  let of_bytes src =
+    let len = Bytes.length src in
+    let dst = create len in
+    Memcpy.memcpy
+      Memcpy.ocaml_bytes (Memcpy.bigarray Ctypes.array1 len Bigarray.char)
+      ~src ~src_off: 0 ~dst ~dst_off: 0 ~len;
+    dst
 
   let sub = Array1.sub
 
-  let blit src srcoff dst dstoff len =
-    Array1.blit (Array1.sub src srcoff len)
-                (Array1.sub dst dstoff len)
+  let blit src src_off dst dst_off len =
+    Array1.blit (Array1.sub src src_off len)
+                (Array1.sub dst dst_off len)
 
   let blit_bigbytes = blit
   let blit_to_bigbytes = blit
 
-  let blit_bytes src srcoff dst dstoff len =
-    for i = 0 to len - 1 do
-      Array1.set dst (dstoff + i) (Bytes.get src (srcoff + i))
-    done
-  let blit_to_bytes src srcoff dst dstoff len =
-    for i = 0 to len - 1 do
-      Bytes.set dst (dstoff + i) (Array1.get src (srcoff + i))
-    done
+  let blit_bytes src src_off dst dst_off len =
+    Memcpy.memcpy
+      Memcpy.ocaml_bytes
+      (Memcpy.bigarray Ctypes.array1 (length dst) Bigarray.char)
+      ~src ~src_off ~dst ~dst_off ~len
+
+  let blit_to_bytes src src_off dst dst_off len =
+    Memcpy.memcpy
+      (Memcpy.bigarray Ctypes.array1 (length src) Bigarray.char)
+      Memcpy.ocaml_bytes
+      ~src ~src_off ~dst ~dst_off ~len
+
 end
 
 module Bytes = struct
@@ -90,12 +100,15 @@ module Bytes = struct
   let blit_bytes = blit
   let blit_to_bytes = blit
 
-  let blit_bigbytes src srcoff dst dstoff len =
-    for i = 0 to len - 1 do
-      Bytes.set dst (dstoff + i) (Bigarray.Array1.get src (srcoff + i))
-    done
-  let blit_to_bigbytes src srcoff dst dstoff len =
-    for i = 0 to len - 1 do
-      Bigarray.Array1.set dst (dstoff + i) (Bytes.get src (srcoff + i))
-    done
+  let blit_bigbytes src src_off dst dst_off len =
+    Memcpy.memcpy
+      (Memcpy.bigarray Ctypes.array1 (Bigbytes.length src) Bigarray.char)
+      Memcpy.ocaml_bytes
+      ~src ~src_off ~dst ~dst_off ~len
+
+  let blit_to_bigbytes src src_off dst dst_off len =
+    Memcpy.memcpy
+      Memcpy.ocaml_bytes
+      (Memcpy.bigarray Ctypes.array1 (Bigbytes.length dst) Bigarray.char)
+      ~src ~src_off ~dst ~dst_off ~len
 end

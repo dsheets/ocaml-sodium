@@ -5,3 +5,4 @@ PKG bytes
 PKG ctypes.stubs
 PKG ocamlbuild
 PKG oUnit
+PKG memcpy

@@ -1,1 +1,1 @@
-<*.{ml,byte,native}>: package(ctypes.stubs)
+<*.{ml,byte,native}>: package(ctypes.stubs), package(memcpy)

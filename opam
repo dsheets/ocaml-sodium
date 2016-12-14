@@ -29,6 +29,7 @@ depends: [
   "ocamlfind" {build}
   "ocamlbuild" {build}
   "ctypes" {>= "0.4.0"}
+  "memcpy"
 ]
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]
