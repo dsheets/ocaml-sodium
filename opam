@@ -1,6 +1,6 @@
 opam-version: "1.2"
 name: "sodium"
-version: "0.5.0"
+version: "dev"
 maintainer: "sheets@alum.mit.edu"
 authors: [
   "David Sheets <sheets@alum.mit.edu>"
@@ -28,7 +28,7 @@ depends: [
   "base-bytes"
   "ocamlfind" {build}
   "ocamlbuild" {build}
-  "ctypes" {>= "0.4.0"}
+  "ctypes" {>= "0.6.0"}
 ]
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]
