@@ -28,7 +28,7 @@ depends: [
   "base-bytes"
   "ocamlfind" {build}
   "ocamlbuild" {build}
-  "ctypes" {>= "0.4.0"}
+  "ctypes" {>= "0.6.0"}
 ]
 depexts: [
   [ ["debian"] ["libsodium-dev"] ]
