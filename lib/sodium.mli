@@ -190,55 +190,59 @@ module Box : sig
 end
 
 module Scalar_mult : sig
-  type group_elt
-  type integer
+  module Curve25519 : sig
+    type group_elt
+    type integer
 
-  (** Primitive used by this implementation. Currently ["curve25519"]. *)
-  val primitive       : string
+    (** Primitive used by this implementation ([curve25519]). *)
+    val primitive       : string
 
-  (** Size of group elements, in bytes. *)
-  val group_elt_size  : int
+    (** Size of group elements, in bytes. *)
+    val group_elt_size  : int
 
-  (** Size of integers, in bytes. *)
-  val integer_size    : int
+    (** Size of integers, in bytes. *)
+    val integer_size    : int
 
-  (** [equal_group_elt a b] checks [a] and [b] for equality in constant time. *)
-  val equal_group_elt : group_elt -> group_elt -> bool
+    (** [equal_group_elt a b] checks [a] and [b] for equality in constant time. *)
+    val equal_group_elt : group_elt -> group_elt -> bool
 
-  (** [equal_integer a b] checks [a] and [b] for equality in constant time. *)
-  val equal_integer   : integer -> integer -> bool
+    (** [equal_integer a b] checks [a] and [b] for equality in constant time. *)
+    val equal_integer   : integer -> integer -> bool
 
-  (** [mult n p] multiplies a group element [p] by an integer [n]. *)
-  val mult            : integer -> group_elt -> group_elt
+    (** [mult n p] multiplies a group element [p] by an integer [n]. *)
+    val mult            : integer -> group_elt -> group_elt
 
-  (** [base n] computes the scalar product of a standard group
-      element and an integer [n]. *)
-  val base            : integer -> group_elt
+    (** [base n] computes the scalar product of a standard group
+        element and an integer [n]. *)
+    val base            : integer -> group_elt
 
-  module type S = sig
-    type storage
+    module type S = sig
+      type storage
 
-    (** [of_group_elt ge] converts [ge] to {!storage}. The result
-        is {!group_elt_size} bytes long. *)
-    val of_group_elt  : group_elt -> storage
+      (** [of_group_elt ge] converts [ge] to {!storage}. The result
+          is {!group_elt_size} bytes long. *)
+      val of_group_elt  : group_elt -> storage
 
-    (** [to_group_elt s] converts [s] to a group_elt.
+      (** [to_group_elt s] converts [s] to a group_elt.
 
-        @raise Size_mismatch if [s] is not {!group_elt_size} bytes long *)
-    val to_group_elt  : storage -> group_elt
+          @raise Size_mismatch if [s] is not {!group_elt_size} bytes long *)
+      val to_group_elt  : storage -> group_elt
 
-    (** [of_integer i] converts [i] to {!storage}. The result
-        is {!integer_size} bytes long. *)
-    val of_integer    : integer -> storage
+      (** [of_integer i] converts [i] to {!storage}. The result
+          is {!integer_size} bytes long. *)
+      val of_integer    : integer -> storage
 
-    (** [to_integer s] converts [s] to a integer.
+      (** [to_integer s] converts [s] to a integer.
 
-        @raise Size_mismatch if [s] is not {!integer_size} bytes long *)
-    val to_integer    : storage -> integer
+          @raise Size_mismatch if [s] is not {!integer_size} bytes long *)
+      val to_integer    : storage -> integer
+    end
+
+    module Bytes : S with type storage = Bytes.t
+    module Bigbytes : S with type storage = bigbytes
   end
 
-  module Bytes : S with type storage = Bytes.t
-  module Bigbytes : S with type storage = bigbytes
+  module Ed25519 : module type of Curve25519
 end
 
 module Sign : sig

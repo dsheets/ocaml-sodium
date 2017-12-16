@@ -40,59 +40,70 @@ open Sodium
    two parties: alice and bob. Runs ScalarBaseMult and ScalarMult to compute
    public key and shared key for alice and bob. It asserts that alice and bob
    have the same shared key. *)
-let test_scalarmult ctxt =
-  assert (Scalar_mult.primitive = "curve25519");
+module Test (A: sig
+    include module type of Scalar_mult.Curve25519
+    val name : string
+    val expected_primitive : string
+  end) = struct
+  let test_scalarmult ctxt =
+    A.(assert_equal expected_primitive primitive);
 
-  let sk  = "\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
-            "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
-            "\x00\x00\x00\x00\x00\x00\x00\x00" in
-  let sk  = Scalar_mult.Bytes.to_integer (Bytes.of_string sk) in
-  let sk' = "\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
-            "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
-            "\x00\x00\x00\x00\x00\x00\x00\x00" in
-  let sk' = Scalar_mult.Bytes.to_integer (Bytes.of_string sk') in
-  (* Get public key for alice and bob. *)
-  let pk  = Scalar_mult.base sk  in
-  let pk' = Scalar_mult.base sk' in
-  (* Get the shared key for alice, by using alice's private key and bob's
-     public key. *)
-  let ck  = Scalar_mult.mult sk' pk in
-  (* Get the shared key for bob, by using bob's private key and alice's public
-     key. *)
-  let ck' = Scalar_mult.mult sk pk' in
-  (* Computed shared key of alice and bob should be the same. *)
-  assert_equal ~printer:(fun g -> Printf.sprintf "%S"
-                         (Bytes.to_string (Scalar_mult.Bytes.of_group_elt g))) ck ck';
-  ()
+    let sk  = "\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
+              "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
+              "\x00\x00\x00\x00\x00\x00\x00\x00" in
+    let sk  = A.Bytes.to_integer (Bytes.of_string sk) in
+    let sk' = "\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
+              "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"^
+              "\x00\x00\x00\x00\x00\x00\x00\x00" in
+    let sk' = A.Bytes.to_integer (Bytes.of_string sk') in
+    (* Get public key for alice and bob. *)
+    let pk  = A.base sk  in
+    let pk' = A.base sk' in
+    (* Get the shared key for alice, by using alice's private key and bob's
+       public key. *)
+    let ck  = A.mult sk' pk in
+    (* Get the shared key for bob, by using bob's private key and alice's public
+       key. *)
+    let ck' = A.mult sk pk' in
+    (* Computed shared key of alice and bob should be the same. *)
+    assert_equal ~printer:(fun g -> Printf.sprintf "%S"
+                              (Bytes.to_string (A.Bytes.of_group_elt g))) ck ck';
+    ()
 
-let test_permute ctxt =
-  assert_raises (Size_mismatch "Scalar_mult.to_integer")
-                (fun () -> Scalar_mult.Bytes.to_integer (Bytes.of_string "\x03"));
-  assert_raises (Size_mismatch "Scalar_mult.to_group_elt")
-                (fun () -> Scalar_mult.Bytes.to_group_elt (Bytes.of_string "\x03"))
+  let test_permute ctxt =
+    assert_raises (Size_mismatch (A.name^".to_integer"))
+      (fun () -> A.Bytes.to_integer (Bytes.of_string "\x03"));
+    assert_raises (Size_mismatch (A.name^".to_group_elt"))
+      (fun () -> A.Bytes.to_group_elt (Bytes.of_string "\x03"))
 
-let test_equal ctxt =
-  let sk   = Bytes.of_string (String.make (Scalar_mult.integer_size) 'A') in
-  let sk'  = Bytes.of_string ("B" ^ (String.make (Scalar_mult.integer_size - 1) 'A')) in
-  let sk'' = Bytes.of_string ((String.make (Scalar_mult.integer_size - 1) 'A') ^ "B") in
-  assert_bool "=" (Scalar_mult.equal_integer (Scalar_mult.Bytes.to_integer sk)
-                                            (Scalar_mult.Bytes.to_integer sk));
-  assert_bool "<>" (not (Scalar_mult.equal_integer (Scalar_mult.Bytes.to_integer sk)
-                                                  (Scalar_mult.Bytes.to_integer sk')));
-  assert_bool "<>" (not (Scalar_mult.equal_integer (Scalar_mult.Bytes.to_integer sk)
-                                                  (Scalar_mult.Bytes.to_integer sk'')));
-  let pk   = Bytes.of_string (String.make (Scalar_mult.group_elt_size) 'A') in
-  let pk'  = Bytes.of_string ("B" ^ (String.make (Scalar_mult.group_elt_size - 1) 'A')) in
-  let pk'' = Bytes.of_string ((String.make (Scalar_mult.group_elt_size - 1) 'A') ^ "B") in
-  assert_bool "=" (Scalar_mult.equal_group_elt (Scalar_mult.Bytes.to_group_elt pk)
-                                              (Scalar_mult.Bytes.to_group_elt pk));
-  assert_bool "<>" (not (Scalar_mult.equal_group_elt (Scalar_mult.Bytes.to_group_elt pk)
-                                                    (Scalar_mult.Bytes.to_group_elt pk')));
-  assert_bool "<>" (not (Scalar_mult.equal_group_elt (Scalar_mult.Bytes.to_group_elt pk)
-                                                    (Scalar_mult.Bytes.to_group_elt pk'')))
+  let test_equal ctxt =
+    let sk   = Bytes.of_string (String.make (A.integer_size) 'A') in
+    let sk'  = Bytes.of_string ("B" ^ (String.make (A.integer_size - 1) 'A')) in
+    let sk'' = Bytes.of_string ((String.make (A.integer_size - 1) 'A') ^ "B") in
+    assert_bool "=" (A.equal_integer (A.Bytes.to_integer sk)
+                       (A.Bytes.to_integer sk));
+    assert_bool "<>" (not (A.equal_integer (A.Bytes.to_integer sk)
+                             (A.Bytes.to_integer sk')));
+    assert_bool "<>" (not (A.equal_integer (A.Bytes.to_integer sk)
+                             (A.Bytes.to_integer sk'')));
+    let pk   = Bytes.of_string (String.make (A.group_elt_size) 'A') in
+    let pk'  = Bytes.of_string ("B" ^ (String.make (A.group_elt_size - 1) 'A')) in
+    let pk'' = Bytes.of_string ((String.make (A.group_elt_size - 1) 'A') ^ "B") in
+    assert_bool "=" (A.equal_group_elt (A.Bytes.to_group_elt pk)
+                       (A.Bytes.to_group_elt pk));
+    assert_bool "<>" (not (A.equal_group_elt (A.Bytes.to_group_elt pk)
+                             (A.Bytes.to_group_elt pk')));
+    assert_bool "<>" (not (A.equal_group_elt (A.Bytes.to_group_elt pk)
+                             (A.Bytes.to_group_elt pk'')))
 
-let suite = "Scalarmult" >::: [
-    "test_scalarmult" >:: test_scalarmult;
-    "test_permute"    >:: test_permute;
-    "test_equal"      >:: test_equal;
+  let suite = A.name >::: [
+      "test_scalarmult" >:: test_scalarmult;
+      "test_permute"    >:: test_permute;
+      "test_equal"      >:: test_equal;
+    ]
+end
+
+let suite = "*scalarmult" >::: [
+    (let module M = Test(struct include Scalar_mult.Curve25519 let name = "Scalar_mult.Curve25519" let expected_primitive = "curve25519" end) in M.suite);
+    (let module M = Test(struct include Scalar_mult.Ed25519 let name = "Scalar_mult.Ed25519" let expected_primitive = "ed25519" end) in M.suite);
   ]

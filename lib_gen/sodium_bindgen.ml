@@ -16,6 +16,13 @@ module Bind(F: Cstubs.FOREIGN) = struct
   module Stream' = BindStorage(Stream.Make)
   module Generichash' = BindStorage(Generichash.Make)
 
+  module Scalar_mult_curve25519 = Gen_scalar_mult(struct
+      let primitive = "curve25519"
+    end)
+  module Scalar_mult_ed25519 = Gen_scalar_mult(struct
+      let primitive = "ed25519"
+    end)
+
   module Sha256 = Hash(struct
       let primitive = "sha256"
     end)
