@@ -624,114 +624,118 @@ module Stream : sig
 end
 
 module Auth : sig
-  type 'a key
-  type secret_key = secret key
-  type auth
+  module Hmac_sha512256 : sig
+    type 'a key
+    type secret_key = secret key
+    type auth
 
-  (** Primitive used by this implementation. Currently ["hmacsha512256"]. *)
-  val primitive   : string
+    (** Primitive used by this implementation ([hmacsha512256]). *)
+    val primitive   : string
 
-  (** Size of keys, in bytes. *)
-  val key_size    : int
+    (** Size of keys, in bytes. *)
+    val key_size    : int
 
-  (** Size of authenticators, in bytes. *)
-  val auth_size   : int
+    (** Size of authenticators, in bytes. *)
+    val auth_size   : int
 
-  (** [random_key ()] generates a random secret key . *)
-  val random_key  : unit -> secret key
+    (** [random_key ()] generates a random secret key . *)
+    val random_key  : unit -> secret key
 
-  (** [derive_key difficulty pw salt] derives a key from a human
-      generated password. Since the derivation depends on both
-      [difficulty] and [salt], it is necessary to store them alongside
-      the authenticator. Using a constant salt is insecure because it
-      increases the effectiveness of rainbow tables. Generate the salt
-      with a function like {!Password_hash.random_salt} instead. *)
-  val derive_key      :
-    Password_hash.difficulty ->
-    Password_hash.password ->
-    Password_hash.salt ->
-    secret_key
+    (** [derive_key difficulty pw salt] derives a key from a human
+        generated password. Since the derivation depends on both
+        [difficulty] and [salt], it is necessary to store them alongside
+        the authenticator. Using a constant salt is insecure because it
+        increases the effectiveness of rainbow tables. Generate the salt
+        with a function like {!Password_hash.random_salt} instead. *)
+    val derive_key      :
+      Password_hash.difficulty ->
+      Password_hash.password ->
+      Password_hash.salt ->
+      secret_key
 
-  (** [wipe_key k] overwrites [k] with zeroes. *)
-  val wipe_key    : secret key -> unit
+    (** [wipe_key k] overwrites [k] with zeroes. *)
+    val wipe_key    : secret key -> unit
 
-  (** [equal_keys a b] checks [a] and [b] for equality in constant time. *)
-  val equal_keys  : secret key -> secret key -> bool
+    (** [equal_keys a b] checks [a] and [b] for equality in constant time. *)
+    val equal_keys  : secret key -> secret key -> bool
 
-  module type S = sig
-    type storage
+    module type S = sig
+      type storage
 
-    (** [of_key k] converts [k] to {!storage}. The result is
-        {!key_size} bytes long. *)
-    val of_key  : secret key -> storage
+      (** [of_key k] converts [k] to {!storage}. The result is
+          {!key_size} bytes long. *)
+      val of_key  : secret key -> storage
 
-    (** [to_key s] converts [s] to a secret key.
+      (** [to_key s] converts [s] to a secret key.
 
-        @raise Size_mismatch if [s] is not {!key_size} bytes long *)
-    val to_key  : storage -> secret key
+          @raise Size_mismatch if [s] is not {!key_size} bytes long *)
+      val to_key  : storage -> secret key
 
-    (** [of_auth a] converts [a] to {!storage}. The result is
-        {!auth_size} bytes long. *)
-    val of_auth : auth -> storage
+      (** [of_auth a] converts [a] to {!storage}. The result is
+          {!auth_size} bytes long. *)
+      val of_auth : auth -> storage
 
-    (** [to_auth s] converts [s] to an authenticator.
+      (** [to_auth s] converts [s] to an authenticator.
 
-        @raise Size_mismatch if [s] is not {!auth_size} bytes long *)
-    val to_auth : storage -> auth
+          @raise Size_mismatch if [s] is not {!auth_size} bytes long *)
+      val to_auth : storage -> auth
 
-    (** [auth k m] authenticates a message [m] using a secret key [k],
-        and returns an authenticator [a].  *)
-    val auth    : secret key -> storage -> auth
+      (** [auth k m] authenticates a message [m] using a secret key [k],
+          and returns an authenticator [a].  *)
+      val auth    : secret key -> storage -> auth
 
-    (** [verify k a m] checks that [a] is a correct authenticator
-        of a message [m] under the secret key [k].
+      (** [verify k a m] checks that [a] is a correct authenticator
+          of a message [m] under the secret key [k].
 
-        @raise Verification_failure if [a] is not a correct authenticator
-        of [m] under [k] *)
-    val verify  : secret key -> auth -> storage -> unit
+          @raise Verification_failure if [a] is not a correct authenticator
+          of [m] under [k] *)
+      val verify  : secret key -> auth -> storage -> unit
+    end
+
+    module Bytes : S with type storage = Bytes.t
+    module Bigbytes : S with type storage = bigbytes
   end
 
-  module Bytes : S with type storage = Bytes.t
-  module Bigbytes : S with type storage = bigbytes
+  module Hmac_sha256 : module type of Hmac_sha512256
+  module Hmac_sha512 : module type of Hmac_sha512256
 end
 
-module One_time_auth : sig
-  include module type of Auth
-
-  (** Primitive used by this implementation. Currently ["poly1305"]. *)
-  val primitive   : string
-end
+module One_time_auth : module type of Auth.Hmac_sha512256
 
 module Hash : sig
-  type hash
+  module Sha256 : sig
+    type hash
 
-  (** Primitive used by this implementation. Currently ["sha512"]. *)
-  val primitive : string
+    (** Primitive used by this implementation ([sha256]). *)
+    val primitive : string
 
-  (** Size of hashes, in bytes. *)
-  val size      : int
+    (** Size of hashes, in bytes. *)
+    val size      : int
 
-  (** [equal a b] checks [a] and [b] for equality in constant time. *)
-  val equal     : hash -> hash -> bool
+    (** [equal a b] checks [a] and [b] for equality in constant time. *)
+    val equal     : hash -> hash -> bool
 
-  module type S = sig
-    type storage
+    module type S = sig
+      type storage
 
-    (** [of_hash h] converts [h] to {!storage}. The result is {!size}
-        bytes long. *)
-    val of_hash : hash -> storage
+      (** [of_hash h] converts [h] to {!storage}. The result is {!size}
+          bytes long. *)
+      val of_hash : hash -> storage
 
-    (** [to_hash s] converts [s] to a hash.
+      (** [to_hash s] converts [s] to a hash.
 
-        @raise Size_mismatch if [s] is not {!size} bytes long *)
-    val to_hash : storage -> hash
+          @raise Size_mismatch if [s] is not {!size} bytes long *)
+      val to_hash : storage -> hash
 
-    (** [digest m] computes a hash for message [m]. *)
-    val digest  : storage -> hash
+      (** [digest m] computes a hash for message [m]. *)
+      val digest  : storage -> hash
+    end
+
+    module Bytes : S with type storage = Bytes.t
+    module Bigbytes : S with type storage = bigbytes
   end
 
-  module Bytes : S with type storage = Bytes.t
-  module Bigbytes : S with type storage = bigbytes
+  module Sha512 : module type of Sha256
 end
 
 module Generichash : sig

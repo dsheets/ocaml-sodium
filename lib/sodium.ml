@@ -875,11 +875,23 @@ end) = struct
   module Bigbytes = Make(Storage.Bigbytes)
 end
 
-module Auth = Gen_auth(struct
-  let scope     = "auth"
-  let primitive = "hmacsha512256"
-  let name      = "Auth"
-end)
+module Auth = struct
+  module Hmac_sha256 = Gen_auth(struct
+      let scope     = "auth"
+      let primitive = "hmacsha256"
+      let name      = "Auth.Hmac_sha256"
+    end)
+  module Hmac_sha512 = Gen_auth(struct
+      let scope     = "auth"
+      let primitive = "hmacsha512"
+      let name      = "Auth.Hmac_sha512"
+    end)
+  module Hmac_sha512256 = Gen_auth(struct
+      let scope     = "auth"
+      let primitive = "hmacsha512256"
+      let name      = "Auth.Hmac_sha512256"
+    end)
+end
 
 module One_time_auth = Gen_auth(struct
   let scope     = "onetimeauth"
@@ -887,8 +899,11 @@ module One_time_auth = Gen_auth(struct
   let name      = "One_time_auth"
 end)
 
-module Hash = struct
-  module C = C.Hash
+module Gen_hash (M: sig
+    val primitive : string
+    val name : string
+  end) = struct
+  module C = C.Hash(M)
   let primitive = C.primitive
 
   let size = Size_t.to_int (C.hashbytes ())
@@ -916,7 +931,7 @@ module Hash = struct
 
     let to_hash str =
       if T.length str <> size then
-        raise (Size_mismatch "Hash.to_hash");
+        raise (Size_mismatch (M.name^".to_hash"));
       T.to_bytes str
 
     let digest str =
@@ -929,6 +944,18 @@ module Hash = struct
 
   module Bytes = Make(Storage.Bytes)
   module Bigbytes = Make(Storage.Bigbytes)
+end
+
+module Hash = struct
+  module Sha256 = Gen_hash(struct
+      let name = "Hash.Sha256"
+      let primitive = "sha256"
+    end)
+
+  module Sha512 = Gen_hash(struct
+      let name = "Hash.Sha512"
+      let primitive = "sha512"
+    end)
 end
 
 module Generichash = struct
