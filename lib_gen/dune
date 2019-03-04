@@ -1,0 +1,55 @@
+(library
+  (name sodium_generated)
+  (public_name sodium.generated)
+  (libraries ctypes.stubs sodium_bindings)
+  (modules sodium_generated)
+  (c_names sodium_stubs))
+
+(library
+  (name sodium_bindings)
+  (public_name sodium.bindings)
+  (libraries ctypes sodium_storage sodium_types)
+  (modules sodium_bindings sodium_types_detected))
+
+(library
+  (name sodium_types)
+  (public_name sodium.types)
+  (libraries ctypes)
+  (modules sodium_types))
+
+(executable
+  (name sodium_bindgen)
+  (libraries ctypes ctypes.stubs sodium_bindings sodium_storage)
+  (modules sodium_bindgen)
+  (flags :standard -w -33))
+
+(executable
+  (name sodium_typegen)
+  (libraries ctypes ctypes.stubs sodium_types)
+  (modules sodium_typegen)
+  (flags :standard -w -33))
+
+(rule
+  (targets sodium_types_detect.c)
+  (action
+    (run ./sodium_typegen.bc)))
+
+(rule
+  (deps sodium_types_detect.c)
+  (targets sodium_types_detect)
+  (action (bash "cc -I \"$(ocamlfind query ctypes)\" -I \"$(ocamlc -where)\" -o sodium_types_detect sodium_types_detect.c")))
+
+(rule
+  (deps sodium_types_detect)
+  (targets sodium_types_detected.ml)
+  (action
+    (with-stdout-to
+      sodium_types_detected.ml
+      (progn
+        (echo "[@@@warning \"-9-27\"]")
+        (run ./sodium_types_detect)))))
+
+(rule
+  (targets sodium_generated.ml sodium_stubs.c)
+  (action
+    (run ./sodium_bindgen.bc)))

@@ -1,0 +1,14 @@
+(executable
+  (name test_sodium)
+  (libraries oUnit sodium)
+  (flags :standard -w -27))
+
+(alias
+  (name runtest)
+  (deps nacl_runner)
+  (action (run ./test_sodium.exe)))
+
+(rule
+  (deps nacl_runner.c)
+  (targets nacl_runner)
+  (action (bash "cc -lsodium -o nacl_runner nacl_runner.c")))
