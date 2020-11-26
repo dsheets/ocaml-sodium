@@ -1,3 +1,5 @@
+**This repository is now archived. Please use and contribute to <https://github.com/ahrefs/ocaml-sodium>.**
+
 # ocaml-sodium
 
 [Ctypes](https://github.com/ocamllabs/ocaml-ctypes) bindings to
