@@ -20,7 +20,7 @@ open Sodium
 
 let add_byte b = Bytes.concat (Bytes.of_string "") [b; Bytes.of_string "\x00"]
 
-module Test(A: sig include module type of Auth val name : string end) = struct
+module Test(A: sig include module type of Auth.Hmac_sha512256 val name : string end) = struct
   let test_equal_keys ctxt =
     let sk   = Bytes.make (A.key_size) 'A' in
     let sk'  = Bytes.of_string ("B" ^ (String.make (A.key_size - 1) 'A')) in
@@ -71,6 +71,8 @@ module Test(A: sig include module type of Auth val name : string end) = struct
 end
 
 let suite = "*auth" >::: [
-    (let module M = Test(struct include Auth let name = "Auth" end) in M.suite);
+    (let module M = Test(struct include Auth.Hmac_sha512256 let name = "Auth.Hmac_sha512256" end) in M.suite);
+    (let module M = Test(struct include Auth.Hmac_sha256 let name = "Auth.Hmac_sha256" end) in M.suite);
+    (let module M = Test(struct include Auth.Hmac_sha512 let name = "Auth.Hmac_sha512" end) in M.suite);
     (let module M = Test(struct include One_time_auth let name = "One_time_auth" end) in M.suite);
   ]

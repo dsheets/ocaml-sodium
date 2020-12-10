@@ -130,8 +130,10 @@ module C(F: Cstubs.FOREIGN) = struct
     end
   end
 
-  module Scalar_mult = struct
-    let primitive = "curve25519"
+  module Gen_scalar_mult (M: sig
+      val primitive : string
+    end) = struct
+    let primitive = M.primitive
     let prefix    = "crypto_scalarmult_"^primitive
 
     let sz_query_type   = F.(void @-> returning size_t)
@@ -249,9 +251,11 @@ module C(F: Cstubs.FOREIGN) = struct
     end
   end
 
-  module Hash = struct
-    let primitive = "sha512"
-    let prefix    = "crypto_hash_"^primitive
+  module Hash (M: sig
+      val primitive : string
+    end) = struct
+    let primitive = M.primitive
+    let prefix    = "crypto_hash_" ^ primitive
 
     let sz_query_type = F.(void @-> returning size_t)
     let hashbytes     = F.foreign (prefix^"_bytes") sz_query_type

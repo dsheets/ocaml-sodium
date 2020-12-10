@@ -14,14 +14,42 @@ module Bind(F: Cstubs.FOREIGN) = struct
   module Password_hash' = BindStorage(Password_hash.Make)
   module Secret_box' = BindStorage(Secret_box.Make)
   module Stream' = BindStorage(Stream.Make)
-  module Hash' = BindStorage(Hash.Make)
   module Generichash' = BindStorage(Generichash.Make)
 
-  module Auth = Gen_auth(struct
+  module Scalar_mult_curve25519 = Gen_scalar_mult(struct
+      let primitive = "curve25519"
+    end)
+  module Scalar_mult_ed25519 = Gen_scalar_mult(struct
+      let primitive = "ed25519"
+    end)
+
+  module Sha256 = Hash(struct
+      let primitive = "sha256"
+    end)
+  module Sha256' = BindStorage(Sha256.Make)
+
+  module Sha512 = Hash(struct
+      let primitive = "sha512"
+    end)
+  module Sha512' = BindStorage(Sha512.Make)
+
+  module Hmac_sha256 = Gen_auth(struct
+    let scope     = "auth"
+    let primitive = "hmacsha256"
+  end)
+  module Hmac_sha256' = BindStorage(Hmac_sha256.Make)
+
+  module Hmac_sha512 = Gen_auth(struct
+    let scope     = "auth"
+    let primitive = "hmacsha512"
+  end)
+  module Hmac_sha512' = BindStorage(Hmac_sha512.Make)
+
+  module Hmac_sha512256 = Gen_auth(struct
     let scope     = "auth"
     let primitive = "hmacsha512256"
   end)
-  module Auth' = BindStorage(Auth.Make)
+  module Hmac_sha512256' = BindStorage(Hmac_sha512256.Make)
 
   module One_time_auth = Gen_auth(struct
     let scope     = "onetimeauth"
