@@ -31,9 +31,9 @@ module Bind(F: Cstubs.FOREIGN) = struct
 end
 
 let () =
-  let fmt = Format.formatter_of_out_channel (open_out "lib/sodium_stubs.c") in
+  let fmt = Format.formatter_of_out_channel (open_out "sodium_stubs.c") in
   Format.fprintf fmt "#include <sodium.h>@.";
   Cstubs.write_c fmt ~prefix:"caml_" (module Bind);
 
-  let fmt = Format.formatter_of_out_channel (open_out "lib/sodium_generated.ml") in
+  let fmt = Format.formatter_of_out_channel (open_out "sodium_generated.ml") in
   Cstubs.write_ml fmt ~prefix:"caml_" (module Bind)

@@ -696,7 +696,7 @@ module Auth : sig
 end
 
 module One_time_auth : sig
-  include module type of Auth
+  include module type of Auth [@remove_aliases]
 
   (** Primitive used by this implementation. Currently ["poly1305"]. *)
   val primitive   : string

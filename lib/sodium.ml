@@ -31,6 +31,7 @@ type channel
 module Storage = Sodium_storage
 type bigbytes = Storage.bigbytes
 
+module Sodium_types_detected = Sodium_bindings__.Sodium_types_detected
 module C = Sodium_bindings.C(Sodium_generated)
 module Type = Sodium_types.C(Sodium_types_detected)
 module Sodium_bytes = C.Make(Storage.Bytes)

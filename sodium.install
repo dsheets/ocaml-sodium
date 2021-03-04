@@ -1,0 +1,67 @@
+lib: [
+  "_build/install/default/lib/sodium/META" {"META"}
+  "_build/install/default/lib/sodium/bindings/sodium.bindings.dune" {"bindings/sodium.bindings.dune"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.a" {"bindings/sodium_bindings.a"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cma" {"bindings/sodium_bindings.cma"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cmi" {"bindings/sodium_bindings.cmi"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cmt" {"bindings/sodium_bindings.cmt"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cmx" {"bindings/sodium_bindings.cmx"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cmxa" {"bindings/sodium_bindings.cmxa"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.cmxs" {"bindings/sodium_bindings.cmxs"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings.ml" {"bindings/sodium_bindings.ml"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__.cmi" {"bindings/sodium_bindings__.cmi"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__.cmt" {"bindings/sodium_bindings__.cmt"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__.cmx" {"bindings/sodium_bindings__.cmx"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__.ml" {"bindings/sodium_bindings__.ml"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__Sodium_types_detected.cmi" {"bindings/sodium_bindings__Sodium_types_detected.cmi"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__Sodium_types_detected.cmt" {"bindings/sodium_bindings__Sodium_types_detected.cmt"}
+  "_build/install/default/lib/sodium/bindings/sodium_bindings__Sodium_types_detected.cmx" {"bindings/sodium_bindings__Sodium_types_detected.cmx"}
+  "_build/install/default/lib/sodium/bindings/sodium_types_detected.ml" {"bindings/sodium_types_detected.ml"}
+  "_build/install/default/lib/sodium/generated/libsodium_generated_stubs.a" {"generated/libsodium_generated_stubs.a"}
+  "_build/install/default/lib/sodium/generated/sodium.generated.dune" {"generated/sodium.generated.dune"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.a" {"generated/sodium_generated.a"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cma" {"generated/sodium_generated.cma"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cmi" {"generated/sodium_generated.cmi"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cmt" {"generated/sodium_generated.cmt"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cmx" {"generated/sodium_generated.cmx"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cmxa" {"generated/sodium_generated.cmxa"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.cmxs" {"generated/sodium_generated.cmxs"}
+  "_build/install/default/lib/sodium/generated/sodium_generated.ml" {"generated/sodium_generated.ml"}
+  "_build/install/default/lib/sodium/opam" {"opam"}
+  "_build/install/default/lib/sodium/sodium.a" {"sodium.a"}
+  "_build/install/default/lib/sodium/sodium.cma" {"sodium.cma"}
+  "_build/install/default/lib/sodium/sodium.cmi" {"sodium.cmi"}
+  "_build/install/default/lib/sodium/sodium.cmt" {"sodium.cmt"}
+  "_build/install/default/lib/sodium/sodium.cmti" {"sodium.cmti"}
+  "_build/install/default/lib/sodium/sodium.cmx" {"sodium.cmx"}
+  "_build/install/default/lib/sodium/sodium.cmxa" {"sodium.cmxa"}
+  "_build/install/default/lib/sodium/sodium.cmxs" {"sodium.cmxs"}
+  "_build/install/default/lib/sodium/sodium.dune" {"sodium.dune"}
+  "_build/install/default/lib/sodium/sodium.ml" {"sodium.ml"}
+  "_build/install/default/lib/sodium/sodium.mli" {"sodium.mli"}
+  "_build/install/default/lib/sodium/storage/sodium.storage.dune" {"storage/sodium.storage.dune"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.a" {"storage/sodium_storage.a"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cma" {"storage/sodium_storage.cma"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cmi" {"storage/sodium_storage.cmi"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cmt" {"storage/sodium_storage.cmt"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cmx" {"storage/sodium_storage.cmx"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cmxa" {"storage/sodium_storage.cmxa"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.cmxs" {"storage/sodium_storage.cmxs"}
+  "_build/install/default/lib/sodium/storage/sodium_storage.ml" {"storage/sodium_storage.ml"}
+  "_build/install/default/lib/sodium/types/sodium.types.dune" {"types/sodium.types.dune"}
+  "_build/install/default/lib/sodium/types/sodium_types.a" {"types/sodium_types.a"}
+  "_build/install/default/lib/sodium/types/sodium_types.cma" {"types/sodium_types.cma"}
+  "_build/install/default/lib/sodium/types/sodium_types.cmi" {"types/sodium_types.cmi"}
+  "_build/install/default/lib/sodium/types/sodium_types.cmt" {"types/sodium_types.cmt"}
+  "_build/install/default/lib/sodium/types/sodium_types.cmx" {"types/sodium_types.cmx"}
+  "_build/install/default/lib/sodium/types/sodium_types.cmxa" {"types/sodium_types.cmxa"}
+  "_build/install/default/lib/sodium/types/sodium_types.cmxs" {"types/sodium_types.cmxs"}
+  "_build/install/default/lib/sodium/types/sodium_types.ml" {"types/sodium_types.ml"}
+]
+doc: [
+  "_build/install/default/doc/sodium/CHANGES"
+  "_build/install/default/doc/sodium/README.md"
+]
+stublibs: [
+  "_build/install/default/lib/stublibs/dllsodium_generated_stubs.so"
+]

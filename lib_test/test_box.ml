@@ -259,7 +259,7 @@ module Test(In : IO)(Out : IO) = struct
 
   let check_nacl v out = assert_equal (str_of_hex (str_of_stream out)) v
 
-  let nacl_runner = "_build/lib_test/nacl_runner"
+  let nacl_runner = "./nacl_runner"
   let test_nacl_box ctxt =
     let ((sk,pk),(sk',pk'),message,nonce) = setup () in
     let cs = In.st (In.box sk' pk (In.ts message) nonce) in
