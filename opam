@@ -9,7 +9,7 @@ authors: [
 ]
 homepage: "https://github.com/dsheets/ocaml-sodium/"
 bug-reports: "https://github.com/dsheets/ocaml-sodium/issues/"
-dev-repo: "https://github.com/dsheets/ocaml-sodium.git"
+dev-repo: "git://github.com/dsheets/ocaml-sodium.git"
 tags: ["org:mirage"]
 build: [
   [make] { os != "freebsd" }
